@@ -3,6 +3,17 @@
 
 """
 Ejercicio 31 del Capítulo 02.
+
+MEJORAS:
+    Dentro de Modo gráfico:
+    - Los datos de la fuente no necesitan ser guardados en memoria, solo 
+    mostrados. En memoria se guardan los datos que se van a grabar en el archivo
+    de salida.
+    - El nombre de cada campo cambiado en el archivo de salida solo se necesita
+    aplicar al momento de escribir el archivo (en cada fila dict escrita). Antes
+    no se necesita poner ese nombre en la lista de diccionarios. Solo saber qué
+    nombre de campo se refiere a qué campo.
+
 """
 
 import utilidades.util as u
@@ -47,6 +58,9 @@ def main():
     csvIn = openCSV(fileNameIn, 'r', isDict=True)
     csvOut = openCSV(fileNameOut, 'w', dialect="excel", isDict=True)
 
+    fieldnames = []
+
+    
     diaPrevio = transaccionesDia = None
     for transaccion in csvHistorial:
         fecha = dt.datetime.strptime(transaccion["UTC_Time"], formatoFecha)
@@ -73,4 +87,5 @@ def main():
 
 if __name__ in ("__main__", "__console__"):
     main()
+
 
