@@ -99,7 +99,7 @@ def csvWriteRows(csvWriter, rows, mapFieldNames=None):
 
 
 def csvProcessTrxns(trxnsIn, dateIndex, dateFormat, typeIndex, coinIndex, \
-        mapTrxnTypes, inPlace=False, csvOut=None, fieldNamesInOut=dict()):
+        mapTrxnTypes, csvOut=None, fieldNamesInOut=dict()):
     """
     Procesar todas las transacciones.
 
@@ -117,11 +117,6 @@ def csvProcessTrxns(trxnsIn, dateIndex, dateFormat, typeIndex, coinIndex, \
         - mapTrxnTypes = diccionario donde se relaciona cada tipo de operación
         estándar con su nombre dado en el csv de entrada. Los tipos de operación
         usados como claves son: "staking", "operation", 
-        - inPlace: Flag para indicar si todas las transacciones procesadas se
-        guardan en la misma lista de entrada modificando tanto las transacciones
-        como la propia lista, en cambio, se guardan en una nueva lista creando
-        una nueva memoria para cada transacción. Si trxsnIn es un reader csv
-        entonces no aplica y se crea directamente una nueva lista.
         - csvOut: writer csv de salida donde escribir las transacciones
         procesadas. Si None, todas las transacciones procesadas se devuelven 
         como una lista sin escribirlas en ningún csv.
@@ -168,9 +163,7 @@ def csvProcessTrxns(trxnsIn, dateIndex, dateFormat, typeIndex, coinIndex, \
     """
     if (csvOut is not None): 
         trxnPrevDay = False
-        trxnsOut = []
-    else:
-        trxnsOut = trxnsIn if inPlace else []
+    trxnsOut = []
     findDayTrxns = dict()
 
     for trxn in trxnsIn:
@@ -192,8 +185,6 @@ def csvProcessTrxns(trxnsIn, dateIndex, dateFormat, typeIndex, coinIndex, \
             dset(findDayTrxns, [trxnDay, trxnType, trxn[coinIndex]], trxnNew)
 
         findDayTrxns[trxnDay]
-        if (not inPlace 
-        sys.getrefcount(
 
        # Saber si la transacción se puede agrupar con otras del mismo día.
        # Si no se agrupa, se crea el nuevo dict o se obtiene el existente 
