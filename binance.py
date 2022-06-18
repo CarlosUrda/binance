@@ -26,7 +26,7 @@ import csv
 
 
 
-def changeKeys( dictIn, mapKeys):
+def changeKeys( dictIn, mapKeys = dict())
 """
 Cambiar las claves de un diccionario.
 
@@ -37,7 +37,8 @@ ARGUMENTOS:
     mapear en mapKeys, en el nuevo diccionario se mantiene la antigua
 
 RETORNO:
-    Nuevo diccionario con las claves cambiadas.
+    Nuevo diccionario con las claves cambiadas. Si mapKeys == dict() devuelve
+    una copia del diccionario dictIn.
 """
     return {mapKeys.get(k, k):v for k,v in dictIn.items()}
 
@@ -98,7 +99,7 @@ def csvWriteRows(csvWriter, rows, mapFieldNames=None):
 
 
 def csvProcessTrxns(trxnsIn, dateIndex, dateFormat, typeIndex, coinIndex, \
-        mapTrxnTypes, inPlace=False, csvOut=None, fieldNamesInOut=None):
+        mapTrxnTypes, inPlace=False, csvOut=None, fieldNamesInOut=dict()):
     """
     Procesar todas las transacciones.
 
@@ -183,10 +184,12 @@ def csvProcessTrxns(trxnsIn, dateIndex, dateFormat, typeIndex, coinIndex, \
 
         trxnType = trxn[typeIndex]
         if (trxnType == mapTrxnTypes["staking"])
-            if dget(findDayTrxns, [trxnDay, trxnType, trxn[coinIndex]], False):
-            else:
-                changeKeys(trxn, fieldNamesInOut)
-                dset(findDayTrxns, [trxnDay, trxnType, trxn[coinIndex], trxn)
+            processedTrxn = dget(findDayTrxns, [trxnDay, trxnType, trxn[coinIndex]], False)
+            if processedTrxn:
+                processedTrxn[fieldNamesInOut[valueIndex]] += trxn[valueIndex] 
+                continue
+            newTrxn = changeKeys(trxn, fieldNamesInOut)
+            dset(findDayTrxns, [trxnDay, trxnType, trxn[coinIndex]], trxnNew)
 
         findDayTrxns[trxnDay]
         if (not inPlace 
