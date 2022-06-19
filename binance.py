@@ -44,25 +44,28 @@ RETORNO:
 
 
 
-def csvOpen(file, mode="r", newline='', dialect=None, isDict=False, \
+def csvOpen(file, mode="r", extrasaction="ignore", dialect=None, isDict=True, \
         fieldnames=None):
     """
     Abrir un archivo csv para acceder a sus datos parseados.
     """
-    file = open(file, mode, newline)
+    if dialect is None and 'r' == mode:
+        dialect = csv.Sniffer().sniff(file.read(1024))
+        file.seek(0)
+    elif dialect is None and "w" == mode: 
+        dialect = "excel"
+    elif "r" != mode != "w" :
+        pass # Lanzar excepción de argumento mode incorrecto
+
     # Revisar los modos en open por si hay más que r o w, o con más 
     # modificaciones como w+
     if isDict:
         csvParser = csv.DictReader if 'r' in mode else csv.DictWriter
         args = {"dialect":dialect, "fieldnames":fieldnames, \
-                "extrasaction":"ignore"}
+                "extrasaction":extrasaction}
     else:
         csvParser = csv.reader if 'r' in mode else csv.writer
         args = {"dialect":dialect}
-
-    if dialect is None and 'r' in mode:
-        dialect = csv.Sniffer().sniff(file.read(1024))
-        file.seek(0)
 
     # qué sucede si se le pasa dialect=None para saber qué hacer si modo = w:
     # comprobar antes error o dejarlo a csvParser.
@@ -82,7 +85,7 @@ def csvWriteRows(csvWriter, rows, mapFieldNames=None):
     - mapFieldNames: Diccionario donde se asocia un nuevo nombre para cada
     campo del diccionario de cada fila. La clave representa el nombre
     antiguo de campo, y el valor el nuevo nombre. Si None, los nombres de
-    campo no cambian y se mantienen igual a los nombres de los campos de entrada.
+    campo no cambian y se mantienen igual a los nombres de los campos de entrada
 
     MEJORAS:
         - Gestionar errores.
@@ -159,6 +162,8 @@ def csvProcessTrxns(trxnsIn, dateIndex, dateFormat, typeIndex, coinIndex, \
         directamente en la lista de entrada modificándola, en lugar de una nueva
         lista partiendo de una copia de la lista de entrada.
         - Solucionar las cadenas mágicas de los tipos de operación.
+        - Borrar de las transacciones procesadas los campos que no aparezcan
+        en los campos finales resultado.
         
     """
     if (csvOut is not None): 
@@ -170,7 +175,7 @@ def csvProcessTrxns(trxnsIn, dateIndex, dateFormat, typeIndex, coinIndex, \
         fechaTrxn = dt.datetime.strptime(trxn[dateIndex], dateFormat)
         trxnDay = fechaTrxn.strftime("%d-%m-%Y")
         if (csvOut is not None and trxnPrevDay and trxnPrevDay != trxnDay):
-            csvWriteRows(csvOut, trxnsOut, fieldNamesInOut):
+            csvWriteRows(csvOut, trxnsOut)#, fieldNamesInOut):
             trxnPrevDay = trxnDay
             trxnsOut = []
             findDayTrxns = dict()
@@ -181,7 +186,7 @@ def csvProcessTrxns(trxnsIn, dateIndex, dateFormat, typeIndex, coinIndex, \
             if processedTrxn:
                 processedTrxn[fieldNamesInOut[valueIndex]] += trxn[valueIndex] 
                 continue
-            newTrxn = changeKeys(trxn, fieldNamesInOut)
+            processedTrxn = changeKeys(trxn, fieldNamesInOut)
             dset(findDayTrxns, [trxnDay, trxnType, trxn[coinIndex]], trxnNew)
 
         findDayTrxns[trxnDay]
@@ -198,6 +203,11 @@ def main():
     """
     Función principal.
 
+    El programa permite cuatro combinaciones entrada/salida: Procesar las
+    transacciones directamente desde un reader csv o desde una lista de
+    transacciones de entrada almacenadas ya en memoria hacia un writer csv o 
+    para almacenarlas en otra lista de transacciones de salida en memoria.
+    
     MEJORAS:
         - Dar la opción de ir escribiendo en el archivo de salida cada día de
         transacciones procesado o, en cambio, escribir todas las transacciones
@@ -215,19 +225,29 @@ def main():
     # Los siguientes valores se podrán meter como parámetros al programa, sobre
     # todo al usar interfaz gráfica. Por defecto valores siguientes:
     dateFormat = "%Y-%m-$d %H:%M:%S"
-    dateFieldName = "UTC_Time"
+    dateFieldNameIn = "UTC_Time"
+    coinFieldnameIn = "Coin"
+    typeFieldNameIn = "Operation"
+    valueFieldNameIn = "Change"
+    dateFieldNameOut = "Fecha"
+    coinFieldnameOut = "Moneda"
+    typeFieldNameOut = "Operacion"
+    valueFieldNameOut = "Cantidad"
+    commentFieldNameOut = "Comentario"
+    
     fieldNamesOut = [] # Nombres de los campos en el archivo csv de salida.
-    fieldNamesInOut = dict() # Se pueden usar las claves (nombres de campos del
-                             # csv de salida) para filtrar campos.
+    fieldNamesInOut = {dateFieldName: "Fecha", typeFieldName: "Operacion", \
+            coinFieldName: "Moneda", valueFieldName: "Cantidad"}
     isCsvInToMem = True
     isCsvOutToMem = True
     
-    csvIn = csvOpen(fileNameIn, 'r', isDict=True)
-    trxnsIn = [trxn for trxn in csvIn] if isDumpCSVtoMem else csvIn
+    with open(fileNameIn, newline='') as fileIn:
+        csvIn = csvOpen(fileIn, 'r', isDict=True)
+        trxnsIn = [trxn for trxn in csvIn] if isDumpCSVtoMem else csvIn
 
-    
-    trxnsOut = csvProcessTrxns(trxnsIn, dateFieldName, dateFormat, \
-            isCsvOutToMem, csvOut, fieldNamesInOut)
+        
+        trxnsOut = csvProcessTrxns(trxnsIn, dateFieldName, dateFormat, \
+                isCsvOutToMem, csvOut, fieldNamesInOut)
 
     
     csvOut = csvOpen(fileNameOut, 'w', dialect="excel", isDict=True, \
