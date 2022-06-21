@@ -20,6 +20,7 @@ MEJORAS:
 
 import utilidades.util as u
 import datetime as dt
+import collections as cl
 import sys
 import csv
 
@@ -101,101 +102,109 @@ def csvWriteRows(csvWriter, rows, mapFieldNames=None):
 
 
 
-def csvProcessTrxns(trxnsIn, dateIndex, dateFormat, typeIndex, coinIndex, \
-        mapTrxnTypes, csvOut=None, fieldNamesInOut=dict()):
+def csvProcessTrxns(trxnsIn, processTrxn, csvOut=None, mergeTrxnsByGroup = None,
+        getGroupHash = None, getBlockValue = None)
     """
     Procesar todas las transacciones.
 
     ARGUMENTOS:
         - trxnsIn: Iterator con las transacciones de entrada.
-        - dateIndex: Índice del campo (transacción es lista) o nombre del campo
-        (transacción es diccionario) donde se encuentra la fecha en cada trans.
-        - dateFormat: Formato de la fecha.
-        - typeIndex: Índice del campo (transacción es lista) o nombre del campo
-        (transacción es diccionario) donde se encuentra el tipo de operación de
-        la transacción realizada.
-        - coinIndex: Índice del campo (transacción es lista) o nombre del campo
-        (transacción es diccionario) donde se encuentra la moneda de la
-        transacción realizada.
-        - mapTrxnTypes = diccionario donde se relaciona cada tipo de operación
-        estándar con su nombre dado en el csv de entrada. Los tipos de operación
-        usados como claves son: "staking", "operation", 
         - csvOut: writer csv de salida donde escribir las transacciones
         procesadas. Si None, todas las transacciones procesadas se devuelven 
         como una lista sin escribirlas en ningún csv.
-        
-        Si existe un writer hay un ahorro de memoria durante el procesamiento al
-        no guardarse todas las transacciones procesadas: solo van almacenando 
-        temporalmente las transacciones procesadas de un día y, al pasar a una
-        transacción de entrada con un día distinto, todas las transacciones 
-        procesadas del día almacenadas hasta ese momento se escriben en el
-        writer y se limpian de la memoria. Por esta razón, para que el
-        procesamiento sea correcto usando esta manera, la lista de transacciones
-        de entrada deben de estar agrupadas por día.
-        Para realizar el procesamiento sin tener en cuenta la agrupación de las
-        transacciones por día, se necesita almacenar en memoria todas las
-        transacciones procesadas (no solo las de un día temporalmente), ya que
-        hasta que no se recorran todas las transacciones de entrada no se puede
-        confirmar si las transacciones procesadas de cualquier día están
-        completas. Por lo tanto, para escribir las transacciones procesadas a un
-        csv a partir de unas transacciones de entrada no agrupadas por día,
-        antes se debe obtener la lista de todas las transacciones procesadas, y
-        justo es esa lista la que devuelve la función, pudiéndose realizar la
-        escritura desde fuera directamente.
+        Si existe un writer no se guardan todas las transacciones procesadas:
+        solo van almacenando temporalmente las transacciones procesadas de un 
+        día y, al pasar a una transacción de entrada con un día distinto, todas 
+        las transacciones procesadas del día almacenadas hasta ese momento se 
+        escriben en el writer csv y se limpian de la memoria. Por esta razón,
+        para que el procesamiento sea correcto usando esta manera, la lista de 
+        transacciones de entrada deben de estar agrupadas por día; además, no
+        puede haber transacciones de días distintos que sean potencialmente
+        unibles en una sola transacción.
+        Esta opción existe para ahorrar memoria, pero tienen que cumplirse dos
+        condiciones para que el procesamiento sea correcto: que la lista de 
+        transacciones esté ordenada por día, y que no haya varias transacciones
+        unibles en una sola transacción que pertenezcan a días distintos. Si
+        alguna de las dos condiciones no se cumple, es mejor no pasar ningún
+        csv writer a la función, que devuelva la lista completa de transacciones
+        procesadas y, desde fuera de la función, escribir el resultado a un 
+        csv writer.
         - fieldNamesInOut: Diccionario donde se asocia un nuevo nombre para cada
         campo del diccionario de cada transacción. La clave representa el nombre
         antiguo de campo, y el valor el nuevo nombre. Si None, los nombres de
         campo no cambian y se mantienen igual a los nombres de los campos de
         entrada.
+        Valor por el que están aglutinadas u ordenadas las transacciones de
+        entrada formando bloques en memoria. Sirve para optimizar la memoria
+        al ir almacenando solamente cada vez un solo bloque de transacciones que
+        tienen este mismo valor. Al usarse esta opción, la unión de 
+        transacciones (merge) deben ser solo entre las transacciones de un mismo
+        bloque
 
     RETORNO:
         - csvOut == None: lista resultante de todas las transacciones de
-        entrada procesadas. No es necesario que las transacciones de entrada
-        estén ordenadas.
-        - csvOut != None: True tras el procesamiento de las transacciones y
-        su escritura completa en el csv de salida. Es necesario que las
-        transacciones de entrada estén agrupadas por día para que todo el
-        procesamiento sea coherente. 
+        entrada procesadas.
+        estén agrupadas por día.
+        - csvOut != None: Número de caracteres escritos en el csw writer.
 
     MEJORAS:
-        - Desarrollar la opción de obtener la lista de transacciones procesadas
-        directamente en la lista de entrada modificándola, en lugar de una nueva
-        lista partiendo de una copia de la lista de entrada.
-        - Solucionar las cadenas mágicas de los tipos de operación.
-        - Borrar de las transacciones procesadas los campos que no aparezcan
-        en los campos finales resultado.
         
     """
-    if (csvOut is not None): 
-        trxnPrevDay = False
-    trxnsOut = []
-    findDayTrxns = dict()
+    hashTrxnsGroups = cl.OrderedDict()
+    outTrxns = [] if (csvOut is None) else 0
+    prevBlockValue = None
+    doMerge = mergeTrxnsByGroup is not None and getGroupHash is not None
+    doBlocks = getBlockValue is not None
 
     for trxn in trxnsIn:
-        fechaTrxn = dt.datetime.strptime(trxn[dateIndex], dateFormat)
-        trxnDay = fechaTrxn.strftime("%d-%m-%Y")
-        if (csvOut is not None and trxnPrevDay and trxnPrevDay != trxnDay):
-            csvWriteRows(csvOut, trxnsOut)#, fieldNamesInOut):
-            trxnPrevDay = trxnDay
-            trxnsOut = []
-            findDayTrxns = dict()
+        trxn = processTrxn(trxn)
 
-        trxnType = trxn[typeIndex]
-        if (trxnType == mapTrxnTypes["staking"])
-            processedTrxn = dget(findDayTrxns, [trxnDay, trxnType, trxn[coinIndex]], False)
-            if processedTrxn:
-                processedTrxn[fieldNamesInOut[valueIndex]] += trxn[valueIndex] 
-                continue
-            processedTrxn = changeKeys(trxn, fieldNamesInOut)
-            dset(findDayTrxns, [trxnDay, trxnType, trxn[coinIndex]], trxnNew)
+        if (not doMerge):
+            if (csvOut is None)
+                outTrxns.append(trxn)
+            else:
+                outTrxns += csvOut.writerow(trxn)
+            continue
 
-        findDayTrxns[trxnDay]
+        if (doBlocks):
+            blockValue = getBlockValue(trxn)
+        if (prevBlockValue is not None and prevBlockValue != blockValue):
+            tempOutTrxns = mergeTrxnsByGroup(hashTrxnsGroups.values())
+            if (csvOut is None):
+                outTrxns.extend(tempOutTrxns)
+            else:
+                outTrxns += csvOut.writerows(tempOutTrxns)
+            prevBlockValue = blockValue
+            hashTrxnsGroups = cl.OrderedDict()
 
-       # Saber si la transacción se puede agrupar con otras del mismo día.
-       # Si no se agrupa, se crea el nuevo dict o se obtiene el existente 
-       # modificado
-       # Se registra el dict tanto en la lista de transacciones del día como
-       # en el dict para saber si ya existe
+        groupHash = getGroupHash(trxn)
+        if (groupHash not in hashTrxnsGroups)
+            hashTrxnsGroups[groupHash] = []
+        hashTrxnsGroups[groupHash].append(trxn)
+
+    if (doMerge):
+        tempOutTrxns = mergeTrxnsByGroup(hashTrxnsGroups.values())
+        if (csvOut is None):
+            outTrxns.extend(tempOutTrxns)
+        else:
+            outTrxns += csvOut.writerows(tempOutTrxns)
+    
+    return outTrxns 
+
+
+def getTrxnDay(trxn, dateIndex, dateFormat, dayFormat):
+    """
+    Obtener una cadena representando el día de la transacción
+ 
+    ARGUMENTOS:
+        - dateIndex: Índice del campo (transacción es lista) o nombre del campo
+        (transacción es diccionario) donde se encuentra la fecha en cada trans.
+        - dateFormat: Cadena representando el formato completo de la fecha.
+        - dayFormat: Cadena representando el formato del día.
+    """
+    fechaTrxn = dt.datetime.strptime(trxn[dateIndex], dateFormat)
+    return fechaTrxn.strftime(dayFormat)
+
 
 
 
@@ -246,14 +255,14 @@ def main():
         trxnsIn = [trxn for trxn in csvIn] if isDumpCSVtoMem else csvIn
 
         
-        trxnsOut = csvProcessTrxns(trxnsIn, dateFieldName, dateFormat, \
+        outTrxns = csvProcessTrxns(trxnsIn, dateFieldName, dateFormat, \
                 isCsvOutToMem, csvOut, fieldNamesInOut)
 
     
     csvOut = csvOpen(fileNameOut, 'w', dialect="excel", isDict=True, \
             fieldnames=fieldNamesOut)
     csvOut.writeheader()
-    csvWriteRows(csvOut, trxnsOut, fieldNamesInOut)
+    csvWriteRows(csvOut, outTrxns, fieldNamesInOut)
 
     # cerrar el archivo csv abierto
 
