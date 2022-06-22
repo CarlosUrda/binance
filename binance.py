@@ -26,7 +26,7 @@ import csv
 
 
 
-# *** FUNCIONES UTILIDAD ***
+# *** FUNCIONES UTIL ***
 
 def changeKeys( dictIn, mapKeys = dict())
 """
@@ -105,7 +105,7 @@ def csvWriteRows(csvWriter, rows, mapFieldNames=None):
 
 
 
-# *** FUNCIONES PARA TRANSFORMAR VARIOS VALORES EN UN VALOR ***
+# *** FUNCIONES PARA OBTENER UN VALOR A PARTIR DE VARIOS ***
 
 def applyDateFormat(strDate, dateFormat, newDateFormat):
     """
@@ -141,8 +141,7 @@ def joinStrValues(*values):
 
 
 
-def processValuesWithDate(processValues, dateFormat, newDateFormat, date, \
-        *values):
+def getValueWithDate(getValue, dateFormat, newDateFormat, date, *values):
     """
     Función que obtiene un valor a partir de un conjunto de valores usando
     un metodo pasado como argumento. Antes de obtener el valor resultado se
@@ -150,7 +149,7 @@ def processValuesWithDate(processValues, dateFormat, newDateFormat, date, \
     al final de la lista de valores para obtener el valor resultante.
 
     ARGUMENTOS:
-        - processValues: función a usar para obtener un nuevo valor a partir
+        - getValue: función a usar para obtener un nuevo valor a partir
         de la lista de valores (incluyendo la fecha modificada al final)
         - date: Cadena str representando una fecha.
         - dateFormat: formato de la fecha.
@@ -159,11 +158,11 @@ def processValuesWithDate(processValues, dateFormat, newDateFormat, date, \
         resultado.
 
     RETORNO:
-        Valor resultado de aplicar processValues a la lista de valores,
+        Valor resultado de aplicar getValue a la lista de valores,
         incluyendo la fecha modificada al final de la lista de valores.
     """
     newDate = applyDateFormat(date, dateFormat, newDateFormat)
-    return joinStrValues(*values, newDate) 
+    return getValue(*values, newDate) 
 
 
 
@@ -175,7 +174,7 @@ def processValuesWithDate(processValues, dateFormat, newDateFormat, date, \
 
 # *** FUNCIONES PARA ENVOLVER Y HACER GENÉRICAS LAS OPERACIONES EN TRXNS ***
 
-def getTrxnValue(trxn, processValues, *keys):
+def getTrxnValue(trxn, getValue, *keys):
     """
     Obtener de manera genérica un valor a partir de una transacción aplicando 
     una función concreta.
@@ -183,9 +182,9 @@ def getTrxnValue(trxn, processValues, *keys):
     ARGUMENTOS:
         - trxn: Transacción a partir de la cual obtener el valor. Puede ser una
         secuencia o un mapping.
-        - processValues: Función para procesar los valores de los campos y
-        devolver un valor. Solo puede recibir valores de los campos de la
-        transacción a ser procesados.
+        - getValue: Función para procesar los valores de los campos y devolver
+        un valor. Solo puede recibir valores de los campos de la transacción a
+        ser procesados.
         - keys: índices o claves de la transacción cuyos valores serán usados en
         la obtención del id del bloque.
 
@@ -193,11 +192,11 @@ def getTrxnValue(trxn, processValues, *keys):
         Valor obtenido a partir de la transacción.
     """
     values = [trxn[k] for k in keys]
-    return processValues(*values)
+    return getValue(*values)
 
 
 
-def getTrxnValueByType(trxn, typeKey, mapProcessKeysByType):
+def getTrxnValueByType(trxn, typeKey, mapGetValueKeysByType):
     """
     Obtener de manera genérica un solo valor a partir de una transacción, pero
     el método aplicado para obtener dicho valor depende del contenido del
@@ -208,7 +207,7 @@ def getTrxnValueByType(trxn, typeKey, mapProcessKeysByType):
         secuencia o un mapping.
         - typeKey: clave o índice donde se encuentra el valor a ser considerado
         como tipo de de la transacción.
-        - mapProcessKeysByType: Diccionario donde por cada tipo (clave) existe
+        - mapGetValueKeysByType: Diccionario donde por cada tipo (clave) existe
         una lista con un par de valores: función para procesar valores y lista
         de claves cuyos valores en la transacción serán procesados por la 
         función anterior. La función solo puede recibir como argumentos los
@@ -217,21 +216,21 @@ def getTrxnValueByType(trxn, typeKey, mapProcessKeysByType):
     RETORNO:
         Valor obtenido a partir de la transacción en función de su tipo.
     """
-    processValues, keys = mapProcessKeysByType[trxn[typeKey]]
-    return getTrxnValue(trxn, processValues, *keys)
+    getValue, keys = mapGetValueKeysByType[trxn[typeKey]]
+    return getTrxnValue(trxn, getValue, *keys)
 
 
 
-def wrapGetTrxnValue(processValues, *keys):
+def wrapGetTrxnValue(getValue, *keys):
     """
     Función que envuelve getTrxnValue para poder obtener una función que 
-    obtiene el valor de una transacción recibiendo solo la transacción. Las
+    obtenga el valor de una transacción recibiendo solo la transacción. Las
     claves y el método usados para obtener el valor se reciben en el wrap.
 
     ARGUMENTOS:
-        - processValues: Función para procesar los valores de los campos y
-        devolver un valor. Solo puede recibir valores de los campos de la
-        transacción a ser procesados.
+        - getValue: Función para procesar los valores de los campos y devolver
+        un valor. Solo puede recibir valores de los campos de la transacción a
+        ser procesados.
         - keys: índices o claves de la transacción cuyos valores serán usados
         en la obtención del valor.
 
@@ -244,21 +243,21 @@ def wrapGetTrxnValue(processValues, *keys):
         Esta función podría eliminarse y donde se usa escribir directamente la
         función lambda.
     """
-    return lambda trxn: getTrxnValue(trxn, processValues, *keys)
+    return lambda trxn: getTrxnValue(trxn, getValue, *keys)
 
 
 
-def wrapGetTrxnValueByType(typeKey, mapProcessKeysByType):
+def wrapGetTrxnValueByType(typeKey, mapGetValueKeysByType):
     """
     Función que envuelve getTrxnValueByType para obtener una función que 
-    recibe solo una transacción y obtiene un valor dependiendo del tipo de
+    reciba solo una transacción y obtenga un valor dependiendo del tipo de
     transacción. Las claves y el método usados por tipo de transacción para
     obtener el valor se reciben en el wrap.
 
     ARGUMENTOS:
         - typeKey: clave o índice de la transacción donde se encuentra el valor
         a ser considerado como tipo de de la transacción.
-        - mapProcessKeysByType: Diccionario donde por cada tipo (clave) existe
+        - mapGetValueKeysByType: Diccionario donde por cada tipo (clave) existe
         una lista con un par de valores: función para procesar valores y lista
         de claves cuyos valores en la transacción serán procesados por la 
         función anterior. La función solo puede recibir como argumentos los
@@ -273,15 +272,84 @@ def wrapGetTrxnValueByType(typeKey, mapProcessKeysByType):
         Esta función podría eliminarse y donde se usa escribir directamente la
         función lambda.
     """
-    return lambda trxn: getTrxnValueByType(trxn, typeKey, mapProcessKeysByType)
+    return lambda trxn: getTrxnValueByType(trxn, typeKey, \
+            mapGetValuesKeysByType)
 
 
 
 
-def processTrxn(trxn):
+def processTrxn(trxn, mapGetNewKeys):
+    """
+    A partir de una transacción obtener una nueva cambiando sus claves y
+    valores.
+
+    ARGUMENTOS:
+        - trxn: transacción a partir de la cual se obtendrá una nueva.
+        - mapGetNewKeys: diccionario donde la clave es cada nueva clave de la
+        nueva transacción y el valor es una lista de dos elementos: primer
+        elemento es la función a aplicar para obtener el nuevo valor para la
+        nueva clave; segundo elemento es una lista de claves de la transacción
+        cuyos valores serán usados por la función para obtener el nuevo valor.
+        La función solo puede recibir por argumentos los valores a partir de
+        los cuales obtendrá un nuevo valor para la nueva clave. Si la función
+        es None la lista de claves asociada solo puede tener una clave, cuyo 
+        valor en la transacción se tomará directamente como el nuevo valor para 
+        la nueva clave en la nueva transacción.
+
+    RETORNO:
+        Diccionario representando a la nueva transacción.
+
+    EXCEPCIONES:
+        Si una función de mapGetNewKeys es None pero la lista de claves
+        asociadas no tiene un solo elemento.
+    """
+    outTrxn = dict()
+    for newKey, getValueKeys  in mapGetNewKeys.items():
+        getValue, keys = getValueKeys
+        if getValue is None and length(keys) != 1:
+            pass 
+            # Lanzar excepción
+        elif getValue is None
+            outTrxn[newKey] = trxn[keys[0]]
+            continue
+        outTrxn[newKey] = getTrxnValue(trxn, getValue, keys)
+
+    return outTrxn
+
+
+
+def wrapProcessTrxn(mapGetNewKeys):
+    """
+    Función que envuelve processTrxn para obtener una función que 
+    reciba solo una transacción y obtenga una nueva transacción usando la
+    configuración de las nuevas claves recibidas en el wrap.
+
+    ARGUMENTOS:
+        - mapGetNewKeys: diccionario donde la clave es cada nueva clave de la
+        nueva transacción y el valor es una lista de dos elementos: primer
+        elemento es la función a aplicar para obtener el nuevo valor de la
+        nueva clave; segundo elemento es una lista de claves de la transacción
+        cuyos valores serán usados por la función para obtener el nuevo valor.
+        La función solo puede recibir por argumentos los valores a partir de
+        los cuales obtendrá un nuevo valor para la nueva clave. Si la función
+        es None la lista de claves asociada solo puede tener una clave, cuyo 
+        valor en la transacción se tomará directamente como el nuevo valor para 
+        la nueva clave en la nueva transacción.
+
+    RETORNO:
+        Diccionario representando a la nueva transacción.
+
+    EXCEPCIONES:
+        Si una función de mapGetNewKeys es None pero la lista de claves
+        asociadas no tiene un solo elemento.
+    """
+    return lambda trxn: processTrxn(trxn, mapGetNewKeys)
+
 
 
 def mergeTrxnsByGroup():
+
+
 
 
 # El valor del tipo usado para obtener la clave groupId debe estar al inicio o
@@ -425,7 +493,7 @@ def main():
             {"function": lambda v: applyDateFormat(v, dateFormat, dayFormat), \
              "keys": [dateFieldNameOut]}
     configTrxnGroupId = \
-            {"staking": [lambda v: processValuesWithDate(dateFormat, dayFormat, v),\
+            {"staking": [lambda v: getValueWithDate(dateFormat, dayFormat, v),\
                 [dateFieldNameOut, typeFieldNameOut, coinFieldNameOut]],
 
     fieldNamesOut = [] # Nombres de los campos en el archivo csv de salida.
