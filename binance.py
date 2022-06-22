@@ -26,6 +26,7 @@ import csv
 
 
 
+# *** FUNCIONES UTILIDAD ***
 
 def changeKeys( dictIn, mapKeys = dict())
 """
@@ -44,6 +45,8 @@ RETORNO:
     return {mapKeys.get(k, k):v for k,v in dictIn.items()}
 
 
+
+# *** FUNCIONES CSV ***
 
 def csvOpen(file, mode="r", extrasaction="ignore", dialect=None, isDict=True, \
         fieldnames=None):
@@ -102,14 +105,15 @@ def csvWriteRows(csvWriter, rows, mapFieldNames=None):
 
 
 
-def applyFormatToDate(strDate, dateFormat, newDateFormat):
+# *** FUNCIONES PARA TRANSFORMAR VARIOS VALORES EN UN VALOR ***
+
+def applyDateFormat(strDate, dateFormat, newDateFormat):
     """
     Transformar una cadena fecha de un formato determinado a una cadena fecha
     con un nuevo formato.
  
     ARGUMENTOS:
         - strDate: Cadena con la fecha de la cual obtener el día.
-        (transacción es diccionario) donde se encuentra la fecha en cada trans.
         - dateFormat: Cadena representando el formato completo de la fecha.
         - newDateFormat: Cadena representando el formato de la nueva fecha.
 
@@ -121,41 +125,45 @@ def applyFormatToDate(strDate, dateFormat, newDateFormat):
 
 
 
-def getGroupId(*values):
+def joinStrValues(*values):
     """
-    Función que obtiene un sencillo groupId a partir de un conjunto de valores.
+    Concatenar varios valores, convirtiéndolos previamente a cadena, formando
+    una sola cadena str como resultado.
 
     ARGUMENTOS:
-        - values: lista de valores a partir de los cuales obtener el groupId.
+        - values: lista de valores a concatenar.
 
     RETORNO:
-        GroupId formado simplemente por la concatenación de cada uno de los
-        valores convertidos previamente a cadena de caracteres.
+        Concatenación de cada uno de los valores convertidos previamente a
+        cadena de caracteres str.
     """
-    return "".join([str(value) for v in values])
+    return "".join(map(str, values))
 
 
 
-def getNewDateGroupId(dateIndex, dateFormat, newDateFormat, *values):
+def processValuesWithDate(processValues, dateFormat, newDateFormat, date, \
+        *values):
     """
-    Función que obtiene un sencillo groupId a partir de un conjunto de valores.
-    Antes de realizar el groupId transforma el valor de la fecha de uno de los
-    valores a un nuevo formato.
+    Función que obtiene un valor a partir de un conjunto de valores usando
+    un metodo pasado como argumento. Antes de obtener el valor resultado se
+    cambia el formato de la fecha, la cual, una vez transformada, se incluye
+    al final de la lista de valores para obtener el valor resultante.
 
     ARGUMENTOS:
-        - dateIndex: índice de la lista de valores que contiene la fecha.
-        - dateFormat: formato de la fecha de la lista de valores.
+        - processValues: función a usar para obtener un nuevo valor a partir
+        de la lista de valores (incluyendo la fecha modificada al final)
+        - date: Cadena str representando una fecha.
+        - dateFormat: formato de la fecha.
         - newDateFormat: nuevo formato a aplicar a la fecha.
-        - values: lista de valores a partir de los cuales obtener el groupId.
+        - values: lista de valores a partir de los cuales obtener nuevo valor
+        resultado.
 
     RETORNO:
-        GroupId formado simplemente por la concatenación de cada uno de los
-        valores convertidos previamente a cadena de caracteres.
+        Valor resultado de aplicar processValues a la lista de valores,
+        incluyendo la fecha modificada al final de la lista de valores.
     """
-    values[dateIndex] = applyFormatToDate(values[dateIndex], dateFormat, \
-            newDateFormat)
-    return getGroupId(*values) 
-
+    newDate = applyDateFormat(date, dateFormat, newDateFormat)
+    return joinStrValues(*values, newDate) 
 
 
 
@@ -163,15 +171,21 @@ def getNewDateGroupId(dateIndex, dateFormat, newDateFormat, *values):
 # desde fuera de la función. Merge solo avanza a través del iterable tal y como
 # lo pasan a la función.
 
+
+
+# *** FUNCIONES PARA ENVOLVER Y HACER GENÉRICAS LAS OPERACIONES EN TRXNS ***
+
 def getTrxnValue(trxn, processValues, *keys):
     """
-    Obtener de manera genérica un solo valor a partir de una transacción.
+    Obtener de manera genérica un valor a partir de una transacción aplicando 
+    una función concreta.
 
     ARGUMENTOS:
         - trxn: Transacción a partir de la cual obtener el valor. Puede ser una
         secuencia o un mapping.
         - processValues: Función para procesar los valores de los campos y
-        devolver un valor.
+        devolver un valor. Solo puede recibir valores de los campos de la
+        transacción a ser procesados.
         - keys: índices o claves de la transacción cuyos valores serán usados en
         la obtención del id del bloque.
 
@@ -179,7 +193,7 @@ def getTrxnValue(trxn, processValues, *keys):
         Valor obtenido a partir de la transacción.
     """
     values = [trxn[k] for k in keys]
-    return processValue(*values)
+    return processValues(*values)
 
 
 
@@ -195,9 +209,10 @@ def getTrxnValueByType(trxn, typeKey, mapProcessKeysByType):
         - typeKey: clave o índice donde se encuentra el valor a ser considerado
         como tipo de de la transacción.
         - mapProcessKeysByType: Diccionario donde por cada tipo (clave) existe
-        una lista con un par de valores: método para procesar valores y lista
+        una lista con un par de valores: función para procesar valores y lista
         de claves cuyos valores en la transacción serán procesados por la 
-        función anterior.
+        función anterior. La función solo puede recibir como argumentos los
+        valores de los campos de la transación a ser procesados.
 
     RETORNO:
         Valor obtenido a partir de la transacción en función de su tipo.
@@ -207,48 +222,56 @@ def getTrxnValueByType(trxn, typeKey, mapProcessKeysByType):
 
 
 
-def wrapGetTrxnBlockId(processValues, *keys):
+def wrapGetTrxnValue(processValues, *keys):
     """
-    Función que envuelve getTrxnValue para hacer de función que obtiene el 
-    identificador del bloque de las transacciones al que pertenece una 
-    transacción. De esta manera, hace de alias de getTrxnBlockId sin necesidad 
-    de tener fijos dentro de la función los campos y método usados para obtener
-    el id de bloque cada transacción.
+    Función que envuelve getTrxnValue para poder obtener una función que 
+    obtiene el valor de una transacción recibiendo solo la transacción. Las
+    claves y el método usados para obtener el valor se reciben en el wrap.
 
     ARGUMENTOS:
-        - processValue: Función para procesar los valores de los campos y
-        devolver un id del bloque.
-        - keys: índices o claves de la transacción cuyos valores serán usados en
-        la obtención del id del bloque.
+        - processValues: Función para procesar los valores de los campos y
+        devolver un valor. Solo puede recibir valores de los campos de la
+        transacción a ser procesados.
+        - keys: índices o claves de la transacción cuyos valores serán usados
+        en la obtención del valor.
 
     RETORNO:
-        Función equivalente a getTrxnBlockId(trxn), la cual recibe una
-        transacción y devuelve el id de su bloque a partir del método y los
-        valores de las claves recibidos en wrapGetTrxnBlockId.
+        Función equivalente a getTrxnValue(trxn), la cual recibe una
+        transacción y devuelve un valor a partir del método y los valores en 
+        los campos de las claves recibidos en wrapGetTrxnValue.
+
+    MEJORAS:
+        Esta función podría eliminarse y donde se usa escribir directamente la
+        función lambda.
     """
     return lambda trxn: getTrxnValue(trxn, processValues, *keys)
 
 
 
-def wrapGetTrxnGroupId(typeKey, mapProcessKeysByType):
+def wrapGetTrxnValueByType(typeKey, mapProcessKeysByType):
     """
-    Función que envuelve getTrxnValueByType para hacer de función que obtiene el
-    groupId de la transacción en función del tipo de transacción. De esta manera
-    hace de alias de getTrxnGroupId sin necesidad de tener fijos dentro de la 
-    función los campos y método usados para obtener el groupId del transacción.
+    Función que envuelve getTrxnValueByType para obtener una función que 
+    recibe solo una transacción y obtiene un valor dependiendo del tipo de
+    transacción. Las claves y el método usados por tipo de transacción para
+    obtener el valor se reciben en el wrap.
 
     ARGUMENTOS:
-        - typeKey: clave o índice donde se encuentra el valor a ser considerado
-        como tipo de de la transacción.
+        - typeKey: clave o índice de la transacción donde se encuentra el valor
+        a ser considerado como tipo de de la transacción.
         - mapProcessKeysByType: Diccionario donde por cada tipo (clave) existe
-        una lista con un par de valores: método para procesar valores y lista
+        una lista con un par de valores: función para procesar valores y lista
         de claves cuyos valores en la transacción serán procesados por la 
-        función anterior.
+        función anterior. La función solo puede recibir como argumentos los
+        valores de los campos de la transación a ser procesados.
 
     RETORNO:
-        Función equivalente a getTrxnGroupId(trxn), la cual recibe una
-        transacción y devuelve el groupId por su tipo a partir del método y los
-        valores de las claves recibidos en wrapGetTrxnGroupId.
+        Función equivalente a getTrxnValueByType(trxn), la cual recibe una
+        transacción y devuelve un valor dependiendo de su tipo a partir usando
+        método y valores de las claves recibidos en el wrap.
+
+    MEJORAS:
+        Esta función podría eliminarse y donde se usa escribir directamente la
+        función lambda.
     """
     return lambda trxn: getTrxnValueByType(trxn, typeKey, mapProcessKeysByType)
 
@@ -387,7 +410,7 @@ def main():
     # Los siguientes valores se podrán meter como parámetros al programa, sobre
     # todo al usar interfaz gráfica. Por defecto valores siguientes:
     dateFormat = "%Y-%m-$d %H:%M:%S"
-    newDateFormat = "%Y-%m-$d"
+    dayFormat = "%Y-%m-$d"
     dateFieldNameIn = "UTC_Time"
     coinFieldnameIn = "Coin"
     typeFieldNameIn = "Operation"
@@ -399,11 +422,11 @@ def main():
     commentFieldNameOut = "Comentario"
     
     configTrxnBlockId = \
-            {"function": lambda d: applyFormatToDate(d, dateFormat, \
-                newDateFormat), \
+            {"function": lambda v: applyDateFormat(v, dateFormat, dayFormat), \
              "keys": [dateFieldNameOut]}
     configTrxnGroupId = \
-            {"staking": [lambda v: getNewDateGroupId(2, dateFormat, newDateFormat, v), [typeFieldNameOut, coinFieldNameOut, dateFieldNameOut]],
+            {"staking": [lambda v: processValuesWithDate(dateFormat, dayFormat, v),\
+                [dateFieldNameOut, typeFieldNameOut, coinFieldNameOut]],
 
     fieldNamesOut = [] # Nombres de los campos en el archivo csv de salida.
     fieldNamesInOut = {dateFieldName: "Fecha", typeFieldName: "Operacion", \
