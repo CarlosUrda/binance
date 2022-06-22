@@ -102,8 +102,175 @@ def csvWriteRows(csvWriter, rows, mapFieldNames=None):
 
 
 
-def csvProcessTrxns(trxnsIn, processTrxn, csvOut=None, mergeTrxnsByGroup = None,
-        getGroupHash = None, getBlockValue = None)
+def applyFormatToDate(strDate, dateFormat, newDateFormat):
+    """
+    Transformar una cadena fecha de un formato determinado a una cadena fecha
+    con un nuevo formato.
+ 
+    ARGUMENTOS:
+        - strDate: Cadena con la fecha de la cual obtener el día.
+        (transacción es diccionario) donde se encuentra la fecha en cada trans.
+        - dateFormat: Cadena representando el formato completo de la fecha.
+        - newDateFormat: Cadena representando el formato de la nueva fecha.
+
+    RETORNO:
+        Cadena representando la fecha con el nuevo formato.
+    """
+    fechaTrxn = dt.datetime.strptime(strDate, dateFormat)
+    return fechaTrxn.strftime(newDateFormat)
+
+
+
+def getGroupId(*values):
+    """
+    Función que obtiene un sencillo groupId a partir de un conjunto de valores.
+
+    ARGUMENTOS:
+        - values: lista de valores a partir de los cuales obtener el groupId.
+
+    RETORNO:
+        GroupId formado simplemente por la concatenación de cada uno de los
+        valores convertidos previamente a cadena de caracteres.
+    """
+    return "".join([str(value) for v in values])
+
+
+
+def getNewDateGroupId(dateIndex, dateFormat, newDateFormat, *values):
+    """
+    Función que obtiene un sencillo groupId a partir de un conjunto de valores.
+    Antes de realizar el groupId transforma el valor de la fecha de uno de los
+    valores a un nuevo formato.
+
+    ARGUMENTOS:
+        - dateIndex: índice de la lista de valores que contiene la fecha.
+        - dateFormat: formato de la fecha de la lista de valores.
+        - newDateFormat: nuevo formato a aplicar a la fecha.
+        - values: lista de valores a partir de los cuales obtener el groupId.
+
+    RETORNO:
+        GroupId formado simplemente por la concatenación de cada uno de los
+        valores convertidos previamente a cadena de caracteres.
+    """
+    values[dateIndex] = applyFormatToDate(values[dateIndex], dateFormat, \
+            newDateFormat)
+    return getGroupId(*values) 
+
+
+
+
+# En la función merge avisar que no ordena el resultado; se tiene que ordenar
+# desde fuera de la función. Merge solo avanza a través del iterable tal y como
+# lo pasan a la función.
+
+def getTrxnValue(trxn, processValues, *keys):
+    """
+    Obtener de manera genérica un solo valor a partir de una transacción.
+
+    ARGUMENTOS:
+        - trxn: Transacción a partir de la cual obtener el valor. Puede ser una
+        secuencia o un mapping.
+        - processValues: Función para procesar los valores de los campos y
+        devolver un valor.
+        - keys: índices o claves de la transacción cuyos valores serán usados en
+        la obtención del id del bloque.
+
+    RETORNO:
+        Valor obtenido a partir de la transacción.
+    """
+    values = [trxn[k] for k in keys]
+    return processValue(*values)
+
+
+
+def getTrxnValueByType(trxn, typeKey, mapProcessKeysByType):
+    """
+    Obtener de manera genérica un solo valor a partir de una transacción, pero
+    el método aplicado para obtener dicho valor depende del contenido del
+    campo de la transacción considerado como tipo.
+
+    ARGUMENTOS:
+        - trxn: Transacción a partir de la cual obtener el valor. Puede ser una
+        secuencia o un mapping.
+        - typeKey: clave o índice donde se encuentra el valor a ser considerado
+        como tipo de de la transacción.
+        - mapProcessKeysByType: Diccionario donde por cada tipo (clave) existe
+        una lista con un par de valores: método para procesar valores y lista
+        de claves cuyos valores en la transacción serán procesados por la 
+        función anterior.
+
+    RETORNO:
+        Valor obtenido a partir de la transacción en función de su tipo.
+    """
+    processValues, keys = mapProcessKeysByType[trxn[typeKey]]
+    return getTrxnValue(trxn, processValues, *keys)
+
+
+
+def wrapGetTrxnBlockId(processValues, *keys):
+    """
+    Función que envuelve getTrxnValue para hacer de función que obtiene el 
+    identificador del bloque de las transacciones al que pertenece una 
+    transacción. De esta manera, hace de alias de getTrxnBlockId sin necesidad 
+    de tener fijos dentro de la función los campos y método usados para obtener
+    el id de bloque cada transacción.
+
+    ARGUMENTOS:
+        - processValue: Función para procesar los valores de los campos y
+        devolver un id del bloque.
+        - keys: índices o claves de la transacción cuyos valores serán usados en
+        la obtención del id del bloque.
+
+    RETORNO:
+        Función equivalente a getTrxnBlockId(trxn), la cual recibe una
+        transacción y devuelve el id de su bloque a partir del método y los
+        valores de las claves recibidos en wrapGetTrxnBlockId.
+    """
+    return lambda trxn: getTrxnValue(trxn, processValues, *keys)
+
+
+
+def wrapGetTrxnGroupId(typeKey, mapProcessKeysByType):
+    """
+    Función que envuelve getTrxnValueByType para hacer de función que obtiene el
+    groupId de la transacción en función del tipo de transacción. De esta manera
+    hace de alias de getTrxnGroupId sin necesidad de tener fijos dentro de la 
+    función los campos y método usados para obtener el groupId del transacción.
+
+    ARGUMENTOS:
+        - typeKey: clave o índice donde se encuentra el valor a ser considerado
+        como tipo de de la transacción.
+        - mapProcessKeysByType: Diccionario donde por cada tipo (clave) existe
+        una lista con un par de valores: método para procesar valores y lista
+        de claves cuyos valores en la transacción serán procesados por la 
+        función anterior.
+
+    RETORNO:
+        Función equivalente a getTrxnGroupId(trxn), la cual recibe una
+        transacción y devuelve el groupId por su tipo a partir del método y los
+        valores de las claves recibidos en wrapGetTrxnGroupId.
+    """
+    return lambda trxn: getTrxnValueByType(trxn, typeKey, mapProcessKeysByType)
+
+
+
+
+def processTrxn(trxn):
+
+
+def mergeTrxnsByGroup():
+
+
+# El valor del tipo usado para obtener la clave groupId debe estar al inicio o
+# final de los valores usados para obtener groupId. Esto se hace para evitar que
+# dos groupId de dos transacciones con tipos distinto (obtenidos a partir de 
+# distintos valores) no coinciddan de ninguna manera.
+
+# Los valores del tipo de transacción deben ser un inmutable, ya que si no, no
+# puede usarse como clave en el diccionario pasado a getTrxnValueByType.
+
+def csvProcessTrxns(trxnsIn, processTrxn, csvOut=None, mergeTrxnsByGroup=None,
+        getGroupId=None, getBlockId=None)
     """
     Procesar todas las transacciones.
 
@@ -150,11 +317,11 @@ def csvProcessTrxns(trxnsIn, processTrxn, csvOut=None, mergeTrxnsByGroup = None,
     MEJORAS:
         
     """
-    hashTrxnsGroups = cl.OrderedDict()
+    groupIdTrxns = cl.OrderedDict()
     outTrxns = [] if (csvOut is None) else 0
-    prevBlockValue = None
-    doMerge = mergeTrxnsByGroup is not None and getGroupHash is not None
-    doBlocks = getBlockValue is not None
+    prevBlockId = None
+    doMerge = mergeTrxnsByGroup is not None and getGroupId is not None
+    doBlocks = getBlockId is not None
 
     for trxn in trxnsIn:
         trxn = processTrxn(trxn)
@@ -167,43 +334,29 @@ def csvProcessTrxns(trxnsIn, processTrxn, csvOut=None, mergeTrxnsByGroup = None,
             continue
 
         if (doBlocks):
-            blockValue = getBlockValue(trxn)
-        if (prevBlockValue is not None and prevBlockValue != blockValue):
-            tempOutTrxns = mergeTrxnsByGroup(hashTrxnsGroups.values())
+            blockId = getBlockId(trxn)
+        if (prevBlockId is not None and prevBlockId != blockId):
+            tempOutTrxns = mergeTrxnsByGroup(groupIdTrxns.values())
             if (csvOut is None):
                 outTrxns.extend(tempOutTrxns)
             else:
                 outTrxns += csvOut.writerows(tempOutTrxns)
-            prevBlockValue = blockValue
-            hashTrxnsGroups = cl.OrderedDict()
+            prevBlockId = blockId
+            groupIdTrxns = cl.OrderedDict()
 
-        groupHash = getGroupHash(trxn)
-        if (groupHash not in hashTrxnsGroups)
-            hashTrxnsGroups[groupHash] = []
-        hashTrxnsGroups[groupHash].append(trxn)
+        groupId = getGroupId(trxn)
+        if (groupId not in groupIdTrxns)
+            groupIdTrxns[groupId] = []
+        groupIdTrxns[groupId].append(trxn)
 
     if (doMerge):
-        tempOutTrxns = mergeTrxnsByGroup(hashTrxnsGroups.values())
+        tempOutTrxns = mergeTrxnsByGroup(groupIdTrxns.values())
         if (csvOut is None):
             outTrxns.extend(tempOutTrxns)
         else:
             outTrxns += csvOut.writerows(tempOutTrxns)
     
     return outTrxns 
-
-
-def getTrxnDay(trxn, dateIndex, dateFormat, dayFormat):
-    """
-    Obtener una cadena representando el día de la transacción
- 
-    ARGUMENTOS:
-        - dateIndex: Índice del campo (transacción es lista) o nombre del campo
-        (transacción es diccionario) donde se encuentra la fecha en cada trans.
-        - dateFormat: Cadena representando el formato completo de la fecha.
-        - dayFormat: Cadena representando el formato del día.
-    """
-    fechaTrxn = dt.datetime.strptime(trxn[dateIndex], dateFormat)
-    return fechaTrxn.strftime(dayFormat)
 
 
 
@@ -234,6 +387,7 @@ def main():
     # Los siguientes valores se podrán meter como parámetros al programa, sobre
     # todo al usar interfaz gráfica. Por defecto valores siguientes:
     dateFormat = "%Y-%m-$d %H:%M:%S"
+    newDateFormat = "%Y-%m-$d"
     dateFieldNameIn = "UTC_Time"
     coinFieldnameIn = "Coin"
     typeFieldNameIn = "Operation"
@@ -244,6 +398,13 @@ def main():
     valueFieldNameOut = "Cantidad"
     commentFieldNameOut = "Comentario"
     
+    configTrxnBlockId = \
+            {"function": lambda d: applyFormatToDate(d, dateFormat, \
+                newDateFormat), \
+             "keys": [dateFieldNameOut]}
+    configTrxnGroupId = \
+            {"staking": [lambda v: getNewDateGroupId(2, dateFormat, newDateFormat, v), [typeFieldNameOut, coinFieldNameOut, dateFieldNameOut]],
+
     fieldNamesOut = [] # Nombres de los campos en el archivo csv de salida.
     fieldNamesInOut = {dateFieldName: "Fecha", typeFieldName: "Operacion", \
             coinFieldName: "Moneda", valueFieldName: "Cantidad"}
@@ -254,7 +415,7 @@ def main():
         csvIn = csvOpen(fileIn, 'r', isDict=True)
         trxnsIn = [trxn for trxn in csvIn] if isDumpCSVtoMem else csvIn
 
-        
+        # Dar antes la opción de agrupar las transacciones itertools groupby 
         outTrxns = csvProcessTrxns(trxnsIn, dateFieldName, dateFormat, \
                 isCsvOutToMem, csvOut, fieldNamesInOut)
 
