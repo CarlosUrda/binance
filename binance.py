@@ -61,8 +61,6 @@ def csvOpen(file, mode="r", extrasaction="ignore", dialect=None, isDict=True, \
     elif "r" != mode != "w" :
         pass # Lanzar excepción de argumento mode incorrecto
 
-    # Revisar los modos en open por si hay más que r o w, o con más 
-    # modificaciones como w+
     if isDict:
         csvParser = csv.DictReader if 'r' in mode else csv.DictWriter
         args = {"dialect":dialect, "fieldnames":fieldnames, \
@@ -194,7 +192,9 @@ def getTrxnValue(trxn, getValue, *keys):
     values = [trxn[k] for k in keys]
     return getValue(*values)
 
-
+# Crear función que aplique una función al conjunto de valores de una
+# transacción tras haber sido procesado cada uno de los valores. Mezcla de
+# getTrxnValue y processTrxn
 
 def getTrxnValueByType(trxn, typeKey, mapGetValueKeysByType):
     """
@@ -278,33 +278,47 @@ def wrapGetTrxnValueByType(typeKey, mapGetValueKeysByType):
 
 
 
-def processTrxn(trxn, mapGetNewKeys):
+def processTrxn(trxn, newKeysProcess):
     """
-    A partir de una transacción obtener una nueva cambiando sus claves y
+    A partir de una transacción obtener una nueva cambiando sus claves/índices y
     valores.
 
     ARGUMENTOS:
-        - trxn: transacción a partir de la cual se obtendrá una nueva.
-        - mapGetNewKeys: diccionario donde la clave es cada nueva clave de la
-        nueva transacción y el valor es una lista de dos elementos: primer
-        elemento es la función a aplicar para obtener el nuevo valor para la
-        nueva clave; segundo elemento es una lista de claves de la transacción
-        cuyos valores serán usados por la función para obtener el nuevo valor.
-        La función solo puede recibir por argumentos los valores a partir de
-        los cuales obtendrá un nuevo valor para la nueva clave. Si la función
-        es None la lista de claves asociada solo puede tener una clave, cuyo 
-        valor en la transacción se tomará directamente como el nuevo valor para 
-        la nueva clave en la nueva transacción.
+        - trxn: transacción a partir de la cual se obtendrá una nueva. Puede ser
+        diccionario o secuencia.
+        - newKeysProcess: diccionario/lista donde la clave/índice es cada nueva
+        clave/índice de la nueva transacción y el valor es una lista de dos 
+        elementos: 
+            * primer elemento es la función a aplicar para obtener el nuevo
+            valor para la nueva clave/índice.
+            * segundo elemento es una lista de claves/índices de la transacción
+            cuyos valores serán usados por la función para obtener el nuevo
+            valor. La función solo puede recibir por argumentos valores a partir
+            partir de los cuales obtendrá un nuevo valor para la nueva
+            clave/índice. Si la función es None la lista de claves/índices
+            asociada solo puede tener una clave/índice, cuyo valor en la
+            transacción se tomará directamente como el nuevo valor para la
+            nueva clave/índice en la nueva transacción.
 
     RETORNO:
-        Diccionario representando a la nueva transacción.
+        Si newKeysProcess es un diccionario, retorna una transacción de tipo
+        OrderedDict. Si desea que las claves estén ordenadas, el diccionario
+        pasado como argumento debe ser OrderedDict.
+        Si newKeysProcess es una lista, devuelve una transacción de tipo lista.
+        Los índices de la lista actúan como las nuevas claves.
 
     EXCEPCIONES:
-        Si una función de mapGetNewKeys es None pero la lista de claves
+        Si una función de newKeysProcess es None pero la lista de claves/índices
         asociadas no tiene un solo elemento.
     """
-    outTrxn = dict()
-    for newKey, getValueKeys  in mapGetNewKeys.items():
+    try:
+        newKeysProcess = newKeysProcess.items()
+        outTrxn = cl.OrderedDict()
+    except AttributeError:
+        newKeysProcess = newKeysProcess.enumerate()
+        outTrxn = [None] * len(newKeysProcess)
+        
+    for newKey, getValueKeys in newKeysProcess:
         getValue, keys = getValueKeys
         if getValue is None and length(keys) != 1:
             pass 
@@ -318,14 +332,14 @@ def processTrxn(trxn, mapGetNewKeys):
 
 
 
-def wrapProcessTrxn(mapGetNewKeys):
+def wrapProcessTrxn(newKeysProcess):
     """
     Función que envuelve processTrxn para obtener una función que 
     reciba solo una transacción y obtenga una nueva transacción usando la
     configuración de las nuevas claves recibidas en el wrap.
 
     ARGUMENTOS:
-        - mapGetNewKeys: diccionario donde la clave es cada nueva clave de la
+        - newKeysProcess: diccionario donde la clave es cada nueva clave de la
         nueva transacción y el valor es una lista de dos elementos: primer
         elemento es la función a aplicar para obtener el nuevo valor de la
         nueva clave; segundo elemento es una lista de claves de la transacción
@@ -340,10 +354,10 @@ def wrapProcessTrxn(mapGetNewKeys):
         Diccionario representando a la nueva transacción.
 
     EXCEPCIONES:
-        Si una función de mapGetNewKeys es None pero la lista de claves
+        Si una función de newKeysProcess es None pero la lista de claves
         asociadas no tiene un solo elemento.
     """
-    return lambda trxn: processTrxn(trxn, mapGetNewKeys)
+    return lambda trxn: processTrxn(trxn, newKeysProcess)
 
 
 
