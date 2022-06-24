@@ -58,6 +58,7 @@ RETORNO:
 
 
 
+
 def getItem(indexable, index, default=None):
     """
     Obtener el valor en una posición del indexable (secuencia o mapping).
@@ -86,6 +87,7 @@ def getItem(indexable, index, default=None):
         return indexable[index]
     except IndexError:
         return default
+
 
 
 
@@ -219,12 +221,17 @@ trxnErrors = \
         {"DOUBLE_GROUP_FEE": \
             "Dos transacciones de comisión en el mismo grupo", \
          "DOUBLE_GROUP_OP": \
-            "Dos transacciones venta o compra en el mismo grupo",\
+            "Dos transacciones venta o compra en el mismo grupo", \
          "EMPTY_GROUP_OP": \
-            "Falta transacción de venta y compra en el mismo grupo",\
-         "MAX_GROUP_TRXNS": \
-            "Más de 3 transacciones en el mismo grupo",
-         "":""}
+            "Falta transacción de venta o compra en el mismo grupo", \
+         "NUM_GROUP_TRXNS": \
+            "Número incorrecto de transacciones en el grupo.", \
+         "TYPE_GROUP_TRXNS": \
+            "Tipo incorrecto de transacciones en el grupo.", \
+         "COIN_GROUP_STAKING": \
+            "Distintas monedas al agrupar por staking", \
+        }
+
 
 
 
@@ -248,6 +255,7 @@ def getTrxnValue(trxn, getValue, *keys):
 
     values = [trxn[k] for k in keys]
     return getValue(*values)
+
 
 
 
@@ -308,6 +316,7 @@ def wrapGetTrxnValue(getValue, *keys):
 
 
 
+
 def wrapGetTrxnValueByType(typeKey, mapGetValueKeysByType):
     """
     Función que envuelve getTrxnValueByType para obtener una función que 
@@ -336,6 +345,7 @@ def wrapGetTrxnValueByType(typeKey, mapGetValueKeysByType):
 
     return lambda trxn: getTrxnValueByType(trxn, typeKey, \
             mapGetValuesKeysByType)
+
 
 
 
@@ -396,6 +406,7 @@ def processTrxn(trxn, newKeysProcess):
 
 
 
+
 def wrapProcessTrxn(newKeysProcess):
     """
     Función que envuelve processTrxn para obtener una función que 
@@ -426,16 +437,14 @@ def wrapProcessTrxn(newKeysProcess):
 
 
 
-# HACER UN LOG DONDE SE VA REGISTRANDO TODO.
 
-def mergeStakingTrxns(trxn, trxn2, coinIndex, stakedIndex):
+def mergeStakingTrxns(trxns, coinIndex, stakedIndex):
     """
-    Unir dos transacciones de tipo staking. 
+    Unir transacciones de tipo staking. 
 
     ARGUMENTOS:
-        - trxn: transacción base a unir. Será la transacción modificada in-place
-        donde estará el resultado de la unión.
-        - trxn2: transacción a unir con la trxn base.
+        - trxns: lista de transacciones a unir como un solo staking. Las
+        transacciones de la lista serán modificados in-place.
         - coinIndex: moneda conseguida en staking.
         - stakedIndex: clave/índice de la transacción donde se encuentra la
         el valor obtenido en staking.
@@ -446,15 +455,23 @@ def mergeStakingTrxns(trxn, trxn2, coinIndex, stakedIndex):
         str.
 
     EXCEPCIONES:
-        Si el tipo de moneda de las dos transacciones es distinta se lanza
-        excepción.
+        Si el tipo de moneda de dos transacciones es distinta se lanza excepción
     """
-    if trxn[coinIndex] != trxn2[coinIndex]:
-        pass # Lanzar excepción
 
-    trxn[stakedIndex] = str(float(trxn[stakedIndex])+float(trxn2[stakedIndex]))
+    assert not trxns, trxnErrors["NUM_GROUP_TRXNS"] + ": 0"
 
-    return trxn
+    trxnOut = trxns.pop(0)
+    trxnsOut = [trxnOut]
+    for trxn in trxns:
+        assert trxnOut[coinIndex] != trxn[coinIndex], \
+                    trxnErrors["COIN_GROUP_STAKING"] + \
+                    f": {trxnOut[coinIndex]}, {trxn[coinIndex]}"
+
+        trxnOut[stakedIndex] = float(trxnOut[stakedIndex]) + \
+                float(trxn[stakedIndex]))
+
+    trxnOut[stakedIndex] = str(trxnOut[stakedIndex])
+    return trxnsOut
 
 
 
