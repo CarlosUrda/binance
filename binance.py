@@ -245,8 +245,11 @@ def getTrxnValue(trxn, getValue, *keys):
     RETORNO:
         Valor obtenido a partir de la transacción.
     """
+
     values = [trxn[k] for k in keys]
     return getValue(*values)
+
+
 
 # Crear función que aplique una función al conjunto de valores de una
 # transacción tras haber sido procesado cada uno de los valores. Mezcla de
@@ -272,6 +275,7 @@ def getTrxnValueByType(trxn, typeKey, mapGetValueKeysByType):
     RETORNO:
         Valor obtenido a partir de la transacción en función de su tipo.
     """
+
     getValue, keys = mapGetValueKeysByType[trxn[typeKey]]
     return getTrxnValue(trxn, getValue, *keys)
 
@@ -299,6 +303,7 @@ def wrapGetTrxnValue(getValue, *keys):
         Esta función podría eliminarse y donde se usa escribir directamente la
         función lambda.
     """
+
     return lambda trxn: getTrxnValue(trxn, getValue, *keys)
 
 
@@ -328,12 +333,14 @@ def wrapGetTrxnValueByType(typeKey, mapGetValueKeysByType):
         Esta función podría eliminarse y donde se usa escribir directamente la
         función lambda.
     """
+
     return lambda trxn: getTrxnValueByType(trxn, typeKey, \
             mapGetValuesKeysByType)
 
 
 
-
+# Los campos que no tienen valores se dejan sin clave si es diccionario. Si
+# es lista se deja vacío.
 def processTrxn(trxn, newKeysProcess):
     """
     A partir de una transacción obtener una nueva cambiando sus claves/índices y
