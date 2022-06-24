@@ -483,9 +483,7 @@ def mergeTradeTrxns(trxns, buyCoinIndex, buyValueIndex, sellCoinIndex, \
     no puede unirse se devuelve como trxns aparte.
 
     ARGUMENTOS:
-        - trxn: transacción base a unir. Será la transacción modificada in-place
-        donde estará el resultado de la unión.
-        - trxn2: transacción a unir con la trxn base.
+        - trxns: lista de transacciones del mismo grupo trading. 
         - buyCoinIndex: clave/índice de la moneda de compra.
         - buyValueIndex: clave/índice de la cantidad de moneda comprada.
         - sellCoinIndex: clave/índice de la moneda de venta.
@@ -568,7 +566,55 @@ def mergeTradeTrxns(trxns, buyCoinIndex, buyValueIndex, sellCoinIndex, \
 
 
 
-def mergeDustTrxns(trxn, trxn2, ):
+def mergeDustTrxns(trxns, buyCoinIndex, buyValueIndex, sellCoinIndex, \
+        sellValueIndex, commentIndex)
+    """
+    Unir dos transacciones de tipo dust.
+
+    ARGUMENTOS:
+        - trxns: lista de transacciones del mismo grupo dust.
+        - buyCoinIndex: clave/índice de la moneda de compra.
+        - buyValueIndex: clave/índice de la cantidad de moneda comprada.
+        - sellCoinIndex: clave/índice de la moneda de venta.
+        - sellValueIndex: clave/índice de la cantidad de moneda vendida.
+        - commentIndex: clave/índice del comentario.
+
+    RETORNO:
+        Devuelve lista con transacciones resultado de unirlas. Si la transacción
+        comisión no se puede unir se devuelve dentro de la lista.
+        La lista de transacciones de entrada quedan modificadas.
+
+    EXCEPCIONES:
+        Si el número de transacciones del grupo es mayor que 3
+        Si hay compra, venta o comisión repetida dentro de las transacciones.
+        Si falta compra o venta en las transacciones.
+    """
+
+    trxnsNum = len(trxns)
+    assert not trxns or trxnsNum != 2, \
+            trxnErrors["NUM_GROUP_TRXNS"] + ": " + len(trxns)
+
+    outTrxn = None
+    for trxn in trxns:
+        if outTrxn is None:
+            outTrxn = trxn
+            outTrxns = [outTrxn]
+            continue
+
+        for coinIndex, valueIndex in {buyCoinIndex: buyValueIndex,
+                sellCoinIndex: sellValueIndex}:
+            inCoin = getItem(trxn, coinIndex, "")
+            outCoin = getItem(outTrxn, coinIndex, "")
+            assert (outCoin != "" and inCoin != ""), \
+                    trxnErrors["DOUBLE_GROUP_OP"] + f": {outTrxn} | {trxn}"
+            assert outCoin == "" and inCoin == "", \
+                    trxnErrors["EMPTY_GROUP_OP"] + f": {outTrxn} | {trxn}"
+            if outCoin == "" and inCoin != "":
+                trxnOut[coinIndex] = inCoin
+                trxnOut[valueIndex] = getItem(trxn, valueIndex, "")
+  
+    outTrxns.append(feeTrxn)
+    return outTrxns
 
 
 
