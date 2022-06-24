@@ -16,6 +16,18 @@ MEJORAS:
     no se necesita poner ese nombre en la lista de diccionarios. Solo saber qué
     nombre de campo se refiere a qué campo.
 
+    Mejorar las excepciones cambiando los assert por excepciones creadas.
+
+    CRear un archivo de log donde ir registrando todo.
+    
+    Permitir que haya un número ilimitado de transacciones de grupo y e ir
+    haciendo el merge sin restricción. El problema de mezclar transacciones de
+    distintos grupos y que no dé error (P. ej: justo hay 3 transacciones 
+    seguidas de un trading —compra, venta y comisión— pero que no pertenecen
+    realmente a la misma operación. La forma de solucionarlo sería alertando
+    de la diferencia entre lo que vale lo comprado y lo que vale lo vendido. Si
+    la diferencia pasa cierto umbral, anotarlo en el log.
+
 """
 
 import utilidades.util as u
