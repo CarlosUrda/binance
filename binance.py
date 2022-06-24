@@ -33,6 +33,7 @@ MEJORAS:
 import utilidades.util as u
 import datetime as dt
 import collections as cl
+import logging as log
 import sys
 import csv
 
@@ -642,10 +643,17 @@ def mergeTrxnsGroupsByType(trxnsGroups, typeIndex, typeMergesKeys):
    
     outTrxns = []
     for trxnsGroup in trxnsGroups:
-        mergesKeys = typeMergesKeys[trxnsGroup[0][typeIndex]]
-        outTrxns.extend(mergesKeys[0](trxnsGroup, *mergesKeys[1]))
+        groupType = trxnsGroup[0][typeIndex]
+        mergesKeys = typeMergesKeys[groupType]
+        try:
+            outTrxns.extend(mergesKeys[0](trxnsGroup, *mergesKeys[1]))
+        except BaseException as e:
+            log.exception(f"Error merge grupo {groupType}: {trxnsGroup}")
+            raise e
+            # Lanzar excepción creada
 
     return outTrxns
+
 
 
 
@@ -654,6 +662,7 @@ def wrapMergeGroupTrxnsByType(typeIndex, typeMerges):
     """
 
     return lambda trxns: mergeGroupTrxnsByType(trxns, typeIndex, typeMerges)
+
 
 
 
@@ -675,6 +684,7 @@ def wrapFunction(function, *endArgs, **kwEndArgs):
 
     return lambda *startArgs, **kwStartArgs: function(*(startArgs+endArgs), \
             **dict(kwStartArgs, **kwEndArgs))
+
 
 
 
