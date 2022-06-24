@@ -215,6 +215,19 @@ def getValueWithDate(getValue, dateFormat, newDateFormat, date, *values):
 
 # *** FUNCIONES PARA ENVOLVER Y HACER GENÉRICAS LAS OPERACIONES EN TRXNS ***
 
+trxnErrors = \
+        {"DOUBLE_GROUP_FEE": \
+            "Dos transacciones de comisión en el mismo grupo", \
+         "DOUBLE_GROUP_OP": \
+            "Dos transacciones venta o compra en el mismo grupo",\
+         "EMPTY_GROUP_OP": \
+            "Falta transacción de venta y compra en el mismo grupo",\
+         "MAX_GROUP_TRXNS": \
+            "Más de 3 transacciones en el mismo grupo",
+         "":""}
+
+
+
 def getTrxnValue(trxn, getValue, *keys):
     """
     Obtener de manera genérica un valor a partir de una transacción aplicando 
