@@ -546,6 +546,26 @@ def mergeDustTrxns(trxn, trxn2, ):
 
 
 
+def wrapFunction(function, *endArgs, **kwEndArgs):
+    """
+    Envolver una función para obtener esa misma función con parte de sus
+    argumentos ya fijados. 
+
+    ARGUMENTOS:
+        - function: función a envolver.
+        - endArgs: argumentos a ser fijados al inicio de la función tras los
+        argumentos de entrada al llamarla.
+        - kwEndArgs: argumentos a ser fijados al final de la función tras los
+        argumentos con nombre al llamarla.
+
+    RETORNO:
+        function con parte de sus argumentos ya fijados por endArgs y kwEndArgs.
+    """
+
+    return lambda *startArgs, **kwStartArgs: function(*(startArgs+endArgs), \
+            **dict(kwStartArgs, **kwEndArgs))
+
+
 
 # El valor del tipo usado para obtener la clave groupId debe estar al inicio o
 # final de los valores usados para obtener groupId. Esto se hace para evitar que
