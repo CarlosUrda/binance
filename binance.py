@@ -58,6 +58,37 @@ RETORNO:
 
 
 
+def getItem(indexable, index, default=None):
+    """
+    Obtener el valor en una posición del indexable (secuencia o mapping).
+
+    ARGUMENTOS:
+        - indexable: secuencia o mapping del cual obtener el valor de su
+        elemento index.
+        - index: clave/índice del elemento del indexable a obtener su valor.
+        Si indexable es secuencia, index debe ser un entero.
+        - default: valor por defecto en caso de no existir el elemento en index.
+
+    RETORNO:
+        Valor del elemento de indexable en la posición index, o default si el
+        indexable no tiene ningún elemento en posición index.
+
+    EXCEPCIONES:
+        TypeError si indexable es secuencia e index no es entero.
+    """
+    
+    try:
+        return indexable.get(index, default)
+    except AttributeError:
+        pass
+
+    try:
+        return indexable[index]
+    except IndexError:
+        return default
+
+
+
 # *** FUNCIONES CSV ***
 
 def csvOpen(file, mode="r", extrasaction="ignore", dialect=None, isDict=True, \
