@@ -28,6 +28,9 @@ MEJORAS:
     de la diferencia entre lo que vale lo comprado y lo que vale lo vendido. Si
     la diferencia pasa cierto umbral, anotarlo en el log.
 
+    Dar la opción de que el programa agrupe todas las transacciones de entrada
+    correctamente antes de empezar a procesarlas.
+
 """
 
 import utilidades.util as u
@@ -88,6 +91,29 @@ def getItem(indexable, index, default=None):
         return indexable[index]
     except IndexError:
         return default
+
+
+
+
+def wrapFunction(function, *endArgs, **kwEndArgs):
+    """
+    Envolver una función para obtener esa misma función con parte de sus
+    argumentos ya fijados. 
+
+    ARGUMENTOS:
+        - function: función a envolver.
+        - endArgs: argumentos a ser fijados al inicio de la función tras los
+        argumentos de entrada al llamarla.
+        - kwEndArgs: argumentos a ser fijados al final de la función tras los
+        argumentos con nombre al llamarla.
+
+    RETORNO:
+        function con parte de sus argumentos ya fijados por endArgs y kwEndArgs.
+    """
+
+    return lambda *startArgs, **kwStartArgs: function(*(startArgs+endArgs), \
+            **dict(kwStartArgs, **kwEndArgs))
+
 
 
 
@@ -231,6 +257,9 @@ trxnErrors = \
             "Tipo incorrecto de transacciones en el grupo.", \
          "COIN_GROUP_STAKING": \
             "Distintas monedas al agrupar por staking", \
+         "DUP_ASIGN_PROCESS_TRXN": \
+            "No se puede asignar a un campo en la nueva transacción \
+            directamente el valor de más de un campo de la antigua transacción"
         }
 
 
@@ -254,7 +283,7 @@ def getTrxnValue(trxn, getValue, *keys):
         Valor obtenido a partir de la transacción.
     """
 
-    values = [trxn[k] for k in keys]
+    values = [getItem(trxn, k, "") for k in keys]
     return getValue(*values)
 
 
@@ -360,7 +389,7 @@ def processTrxn(trxn, newKeysProcess):
     ARGUMENTOS:
         - trxn: transacción a partir de la cual se obtendrá una nueva. Puede ser
         diccionario o secuencia.
-        - newKeysProcess: diccionario/lista donde la clave/índice es cada nueva
+        - newKeysProcess: diccionario/lista donde cada clave/índice es la nueva
         clave/índice de la nueva transacción y el valor es una lista de dos 
         elementos: 
             * primer elemento es la función a aplicar para obtener el nuevo
@@ -395,9 +424,10 @@ def processTrxn(trxn, newKeysProcess):
         
     for newKey, getValueKeys in newKeysProcess:
         getValue, keys = getValueKeys
-        if getValue is None and length(keys) != 1:
-            pass 
-            # Lanzar excepción
+        if keys is None:
+            keys = []
+        assert getValue is None and length(keys) != 1, \
+                trxnErrors["DUP_ASIGN__PROCESS_TRXN"] + f": {keys}"
         elif getValue is None
             outTrxn[newKey] = trxn[keys[0]]
             continue
@@ -586,8 +616,7 @@ def mergeDustTrxns(trxns, buyCoinIndex, buyValueIndex, sellCoinIndex, \
         La lista de transacciones de entrada quedan modificadas.
 
     EXCEPCIONES:
-        Si el número de transacciones del grupo es mayor que 3
-        Si hay compra, venta o comisión repetida dentro de las transacciones.
+        Si no hay dos transacciones.
         Si falta compra o venta en las transacciones.
     """
 
@@ -666,24 +695,6 @@ def wrapMergeGroupTrxnsByType(typeIndex, typeMerges):
 
 
 
-def wrapFunction(function, *endArgs, **kwEndArgs):
-    """
-    Envolver una función para obtener esa misma función con parte de sus
-    argumentos ya fijados. 
-
-    ARGUMENTOS:
-        - function: función a envolver.
-        - endArgs: argumentos a ser fijados al inicio de la función tras los
-        argumentos de entrada al llamarla.
-        - kwEndArgs: argumentos a ser fijados al final de la función tras los
-        argumentos con nombre al llamarla.
-
-    RETORNO:
-        function con parte de sus argumentos ya fijados por endArgs y kwEndArgs.
-    """
-
-    return lambda *startArgs, **kwStartArgs: function(*(startArgs+endArgs), \
-            **dict(kwStartArgs, **kwEndArgs))
 
 
 
@@ -786,7 +797,14 @@ def csvProcessTrxns(trxnsIn, processTrxn, csvOut=None, \
     return outTrxns 
 
 
+def getType():
 
+def getOp():
+
+def getOpValue():
+
+def getComment(oldComment, trxnType):
+    
 
 def main():
     """
@@ -814,17 +832,29 @@ def main():
     # Los siguientes valores se podrán meter como parámetros al programa, sobre
     # todo al usar interfaz gráfica. Por defecto valores siguientes:
     dateFormat = "%Y-%m-$d %H:%M:%S"
-    dayFormat = "%Y-%m-$d"
-    dateFieldNameIn = "UTC_Time"
-    coinFieldnameIn = "Coin"
-    typeFieldNameIn = "Operation"
-    valueFieldNameIn = "Change"
-    dateFieldNameOut = "Fecha"
-    coinFieldnameOut = "Moneda"
-    typeFieldNameOut = "Operacion"
-    valueFieldNameOut = "Cantidad"
-    commentFieldNameOut = "Comentario"
+    newDateFormat = "%d-%m-$Y %H:%M:%S"
+    newDayFormat = "%d-%m-$Y"
     
+    inFields = ["User_ID", "UTC_Time", "Account", "Operation", "Coin", \
+            "Change", "Remark"]
+    outFields = ["Tipo", "Operacion", "Compra", "MonedaC", "Venta", "MonedaV", \
+            "Comision", "MonedaF", "Exchange", "Grupo", "Comentario", "Fecha"]
+    outGets = []
+
+    fieldsGetsValues = \
+            {outFields[0]: [getType, [inFields[3]]], \
+             outFields[1]: [getOp, [inFields[3]]], \
+             outFields[2]: [getOpValue, [inFields[3], inFields[5]]], \
+             outFields[3]: [None, [inFields[4]]], \
+             outFields[4]: [getOpValue, [inFields[3], inFields[5]]], \
+             outFields[5]: [None, [inFields[4]]], \
+             outFields[6]: [getOpValue, [inFields[3], inFields[5]]], \
+             outFields[7]: [None, [inFields[4]]], \
+             outFields[8]: [lambda: "Binance", None], \
+             outFields[10]: [getComment, [inFields[6], inFields[3]]], \
+             outFields[11]: [wrapFunction(applyDateFormat, dateFormat, \
+             newDateFormat), [inFields[1]]]}
+
     configTrxnBlockId = \
             {"function": lambda v: applyDateFormat(v, dateFormat, dayFormat), \
              "keys": [dateFieldNameOut]}
@@ -832,29 +862,30 @@ def main():
             {"staking": [lambda v: getValueWithDate(dateFormat, dayFormat, v),\
                 [dateFieldNameOut, typeFieldNameOut, coinFieldNameOut]],
 
-    fieldNamesOut = [] # Nombres de los campos en el archivo csv de salida.
-    fieldNamesInOut = {dateFieldName: "Fecha", typeFieldName: "Operacion", \
-            coinFieldName: "Moneda", valueFieldName: "Cantidad"}
     isCsvInToMem = True
     isCsvOutToMem = True
     
-    with open(fileNameIn, newline='') as fileIn:
-        csvIn = csvOpen(fileIn, 'r', isDict=True)
-        trxnsIn = [trxn for trxn in csvIn] if isDumpCSVtoMem else csvIn
+    fileIn = open(fileNameIn, newline='')
+    csvIn = csvOpen(fileIn, 'r', isDict=True)
+    trxnsIn = [trxn for trxn in csvIn] if isCSVInToMem else csvIn
 
-        # Dar antes la opción de agrupar las transacciones itertools groupby 
-        outTrxns = csvProcessTrxns(trxnsIn, dateFieldName, dateFormat, \
-                isCsvOutToMem, csvOut, fieldNamesInOut)
+    csvOut = open(fileNameIn, "w", newline='') if isCsvOutToMem else None
+    # Dar antes la opción de agrupar las transacciones itertools groupby 
+    outTrxns = csvProcessTrxns(trxnsIn, wrapFunction(processTrxn, \
+            fieldsGetsValues), dateFormat, \
+            isCsvOutToMem, csvOut, fieldNamesInOut)
 
-    
-    csvOut = csvOpen(fileNameOut, 'w', dialect="excel", isDict=True, \
-            fieldnames=fieldNamesOut)
-    csvOut.writeheader()
-    csvWriteRows(csvOut, outTrxns, fieldNamesInOut)
+    if isCsvOutToMem: 
+        csvOut = csvOpen(fileNameOut, 'w', dialect="excel", isDict=True, \
+                fieldnames=fieldNamesOut)
+        csvOut.writeheader()
+        csvWriteRows(csvOut, outTrxns, fieldNamesInOut)
 
     # cerrar el archivo csv abierto
 
 
+def csvProcessTrxns(trxnsIn, processTrxn, csvOut=None, \
+        mergeTrxnsGroupsByType=None, getGroupId=None, getBlockId=None)
 
 if __name__ in ("__main__", "__console__"):
     main()
