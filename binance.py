@@ -367,13 +367,14 @@ def processTrxn(trxn, newKeysProcess):
         Si newKeysProcess es un diccionario, retorna una transacción de tipo
         OrderedDict. Si desea que las claves estén ordenadas, el diccionario
         pasado como argumento debe ser OrderedDict.
-        Si newKeysProcess es una lista, devuelve una transacción de tipo lista.
-        Los índices de la lista actúan como las nuevas claves.
+        Si newKeysProcess es una secuencia, devuelve una transacción de tipo
+        lista. Los índices de la lista actúan como las nuevas claves.
 
     EXCEPCIONES:
         Si una función de newKeysProcess es None pero la lista de claves/índices
-        asociadas no tiene un solo elemento.
+        asociadas no tiene solo un elemento.
     """
+
     try:
         newKeysProcess = newKeysProcess.items()
         outTrxn = cl.OrderedDict()
