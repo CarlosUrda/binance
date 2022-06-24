@@ -545,6 +545,13 @@ def mergeDustTrxns(trxn, trxn2, ):
 
 
 
+def wrapMergeGroupTrxnsByType(indexType, typeMerges):
+    """
+    """
+
+    return lambda trxns: mergeGroupTrxnsByType(trxns, indexType, typeMerges)
+
+
 
 def wrapFunction(function, *endArgs, **kwEndArgs):
     """
