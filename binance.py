@@ -421,11 +421,128 @@ def wrapProcessTrxn(newKeysProcess):
         Si una función de newKeysProcess es None pero la lista de claves
         asociadas no tiene un solo elemento.
     """
+
     return lambda trxn: processTrxn(trxn, newKeysProcess)
 
 
 
-def mergeTrxnsByGroup():
+# HACER UN LOG DONDE SE VA REGISTRANDO TODO.
+
+def mergeStakingTrxns(trxn, trxn2, coinIndex, stakedIndex):
+    """
+    Unir dos transacciones de tipo staking. 
+
+    ARGUMENTOS:
+        - trxn: transacción base a unir. Será la transacción modificada in-place
+        donde estará el resultado de la unión.
+        - trxn2: transacción a unir con la trxn base.
+        - coinIndex: moneda conseguida en staking.
+        - stakedIndex: clave/índice de la transacción donde se encuentra la
+        el valor obtenido en staking.
+
+    RETORNO:
+        Devuelve la transacción resultado de la unión, que es la transacción
+        base modificada in-place. El valor resultado de la unión se guarda como
+        str.
+
+    EXCEPCIONES:
+        Si el tipo de moneda de las dos transacciones es distinta se lanza
+        excepción.
+    """
+    if trxn[coinIndex] != trxn2[coinIndex]:
+        pass # Lanzar excepción
+
+    trxn[stakedIndex] = str(float(trxn[stakedIndex])+float(trxn2[stakedIndex]))
+
+    return trxn
+
+
+
+def mergeTradeTrxns(trxns, buyCoinIndex, buyValueIndex, sellCoinIndex, 
+        sellValueIndex, feeCoinIndex, feeValueIndex):
+    """
+    Unir dos transacciones de tipo trading.
+
+    ARGUMENTOS:
+        - trxn: transacción base a unir. Será la transacción modificada in-place
+        donde estará el resultado de la unión.
+        - trxn2: transacción a unir con la trxn base.
+        - buyCoinIndex: clave/índice de la moneda de compra.
+        - buyValueIndex: clave/índice de la cantidad de moneda comprada.
+        - sellCoinIndex: clave/índice de la moneda de venta.
+        - sellValueIndex: clave/índice de la cantidad de moneda vendida.
+        - feeCoinIndex: clave/índice de la moneda de comisión.
+        - feeValueIndex: clave/índice de la cantidad de moneda en comisión.
+
+    RETORNO:
+        Devuelve la transacción resultado de la unión, que es la transacción
+        base modificada in-place.
+
+    EXCEPCIONES:
+        Si trxn ya tiene datos en la sección compra, venta o comisión que 
+        representa trxn2.
+    """
+
+    assert (not trxns or len(trxns) > 3), trxnErrors["MAX_GROUP_TRXNS"]
+
+    feeTrxn = outTrxn = None
+    for trxn in trxns:
+        feeCoin = getItem(trxn, feeCoinIndex, "")
+        assert (feeCoin != "" and feeTrxn is not None), \
+                trxnErrors["DOUBLE_GROUP_FEE"] + str(feeTrxn) + " | " +str(trxn)
+        if feeCoin != "":
+            feeTrxn = trxn
+            continue
+        
+        if outTrxn is None:
+            outTrxn = trxn
+            outTrxns = [outTrxn]
+            continue
+
+        for coinIndex, valueIndex in {buyCoinIndex: buyValueIndex,
+                sellCoinIndex: sellValueIndex}:
+            inCoin = getItem(trxn, coinIndex, "")
+            outCoin = getItem(trxnOut, coinIndex, "")
+            assert (outCoin != "" and inCoin != ""), \
+                trxnErrors["DOUBLE_GROUP_OP"] + str(feeTrxn) + " | " +str(trxn)
+            assert outCoin == "" and inCoin == "":
+                trxnErrors["EMPTY_GROUP_OP"] + str(feeTrxn) + " | " +str(trxn)
+            if outCoin == "" and inCoin != "":
+                trxnOut[coinIndex] = inCoin
+                trxnOut[valueIndex] = getItem(trxn, valueIndex, "")
+
+    if feeTrxn is None:
+        return outTrxns
+    if outTrnx is None:
+        return [feeTrxn]
+
+    if getItem(outTrxn, buyCoinIndex) == getItem(feeTrxn, feeCoinIndex):
+        buyValue = float(getItem(outTrxn, buyValueIndex, 0))
+        feeValue = float(getItem(feeTrxn, feeValueIndex, 0))
+        if buyValue > feeValue:
+            outTrxn[buyValueIndex] = str(buyValue - feeValue)
+            outTrxn[feeCoinIndex] = getItem(feeTrxn, feeCoinIndex)
+            outTrxn[feeValueIndex] = getItem(feeTrxn, feeValueIndex)
+            feeTrxn = None
+    elif getItem(outTrxn, sellCoinIndex) == getItem(feeTrxn, feeCoinIndex) or \
+            getItem(outTrxn, sellCoinIndex, "") == "":
+        sellValue = float(getItem(outTrxn, sellValueIndex, 0))
+        feeValue = float(getItem(feeTrxn, feeValueIndex, 0))
+        outTrxn[sellValueIndex] = str(sellValue + feeValue)
+        outTrxn[sellCoinIndex] = getItem(feeTrxn, feeCoinIndex)
+        outTrxn[feeCoinIndex] = getItem(feeTrxn, feeCoinIndex)
+        outTrxn[feeValueIndex] = getItem(feeTrxn, feeValueIndex)
+        feeTrxn = None
+        
+    if feeTrxn is not None:
+        outTrxns.append(feeTrxn)
+    return outTrxns
+
+
+
+def mergeDustTrxns(trxn, trxn2, ):
+
+
 
 
 
