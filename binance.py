@@ -458,6 +458,7 @@ def mergeStakingTrxns(trxn, trxn2, coinIndex, stakedIndex):
 
 
 
+
 def mergeTradeTrxns(trxns, buyCoinIndex, buyValueIndex, sellCoinIndex, 
         sellValueIndex, feeCoinIndex, feeValueIndex):
     """
@@ -540,16 +541,47 @@ def mergeTradeTrxns(trxns, buyCoinIndex, buyValueIndex, sellCoinIndex,
 
 
 
+
 def mergeDustTrxns(trxn, trxn2, ):
 
 
 
 
-def wrapMergeGroupTrxnsByType(indexType, typeMerges):
+# Cada groupId debe ser único, sean los grupos del mismo tipo o no
+def mergeTrxnsGroupsByType(trxnsGroups, typeIndex, typeMergesKeys):
+    """
+    Realiza la unión, por cada grupo, de una lista de transacciones candidatas
+    a ser juntadas en una sola transacción. El método usado para realizar el
+    merge de las transacciones depende del tipo de la transacción.
+
+    ARGUMENTOS:
+        - trxnsGroups: lista de listas o grupos de transacciones a realizar 
+        merge por grupo.
+        - typeIndex: clave/índice de la transacción donde se encuentra el valor
+        del tipo.
+        - typeMergesKeys: diccionario que empareja cada tipo de transacción con
+        una lista que contiene el método a usar para unir las transacciones del
+        mismo grupo y una lista de claves/índices de la transacción cuyos
+        valores serán necesarios para aplicar el merge correctamente.
+
+    RETORNO:
+        Transacción resultado de la unión de las transacciones del mismo grupo.
+    """
+   
+    outTrxns = []
+    for trxnsGroup in trxnsGroups:
+        mergesKeys = typeMergesKeys[trxnsGroup[0][typeIndex]]
+        outTrxns.extend(mergesKeys[0](trxnsGroup, *mergesKeys[1]))
+
+    return outTrxns
+
+
+
+def wrapMergeGroupTrxnsByType(typeIndex, typeMerges):
     """
     """
 
-    return lambda trxns: mergeGroupTrxnsByType(trxns, indexType, typeMerges)
+    return lambda trxns: mergeGroupTrxnsByType(trxns, typeIndex, typeMerges)
 
 
 
@@ -582,8 +614,8 @@ def wrapFunction(function, *endArgs, **kwEndArgs):
 # Los valores del tipo de transacción deben ser un inmutable, ya que si no, no
 # puede usarse como clave en el diccionario pasado a getTrxnValueByType.
 
-def csvProcessTrxns(trxnsIn, processTrxn, csvOut=None, mergeTrxnsByGroup=None,
-        getGroupId=None, getBlockId=None)
+def csvProcessTrxns(trxnsIn, processTrxn, csvOut=None, \
+        mergeTrxnsGroupsByType=None, getGroupId=None, getBlockId=None)
     """
     Procesar todas las transacciones.
 
@@ -630,10 +662,10 @@ def csvProcessTrxns(trxnsIn, processTrxn, csvOut=None, mergeTrxnsByGroup=None,
     MEJORAS:
         
     """
-    groupIdTrxns = cl.OrderedDict()
+    trxnsGroups = cl.OrderedDict()
     outTrxns = [] if (csvOut is None) else 0
     prevBlockId = None
-    doMerge = mergeTrxnsByGroup is not None and getGroupId is not None
+    doMerge = mergeTrxnsGroupsByType is not None and getGroupId is not None
     doBlocks = getBlockId is not None
 
     for trxn in trxnsIn:
@@ -649,21 +681,21 @@ def csvProcessTrxns(trxnsIn, processTrxn, csvOut=None, mergeTrxnsByGroup=None,
         if (doBlocks):
             blockId = getBlockId(trxn)
         if (prevBlockId is not None and prevBlockId != blockId):
-            tempOutTrxns = mergeTrxnsByGroup(groupIdTrxns.values())
+            tempOutTrxns = mergeTrxnsGroupsByType(trxnsGroups.values())
             if (csvOut is None):
                 outTrxns.extend(tempOutTrxns)
             else:
                 outTrxns += csvOut.writerows(tempOutTrxns)
             prevBlockId = blockId
-            groupIdTrxns = cl.OrderedDict()
+            trxnsGroups = cl.OrderedDict()
 
         groupId = getGroupId(trxn)
-        if (groupId not in groupIdTrxns)
-            groupIdTrxns[groupId] = []
-        groupIdTrxns[groupId].append(trxn)
+        if (groupId not in trxnsGroups)
+            trxnsGroups[groupId] = []
+        trxnsGroups[groupId].append(trxn)
 
     if (doMerge):
-        tempOutTrxns = mergeTrxnsByGroup(groupIdTrxns.values())
+        tempOutTrxns = mergeTrxnsGroupsByType(trxnsGroups.values())
         if (csvOut is None):
             outTrxns.extend(tempOutTrxns)
         else:
