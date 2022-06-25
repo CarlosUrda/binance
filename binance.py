@@ -95,7 +95,7 @@ def getItem(indexable, index, default=None):
 
 
 
-def wrapFunction(function, *endArgs, **kwEndArgs):
+def wrapf(function, *endArgs, **kwEndArgs):
     """
     Envolver una función para obtener esa misma función con parte de sus
     argumentos ya fijados. 
@@ -820,14 +820,23 @@ def main():
         transacciones procesado o, en cambio, escribir todas las transacciones
         de golpe.
         Las opciones que maneja el programa son:
-        - Aagrupar transacciones por día para reducir el número.
+        - Agrupar transacciones por día para reducir el número.
         - Elegir el orden de los campos de salida.
         - Cambiar el nombre de los campos de salida.
         - Eliminar campos de salida.
+
+        Desde el programa principal se puede elegir los campos de salida que
+        se quiera y darle un nombre. A cada campo de salida se le asocia la
+        función get que está relacionada con el tipo de campo que es y los 
+        campos de entrada necesarios para poder obtener el dato correctamente
+        para esa función. La función get a elegir y el tipo de dato de ese
+        campo de salida están ligados. La forma de dar al usuario a elegir
+        qué tipo de dato de salida es qué campo se hace eligiendo una función
+        get entre las posibles.
     """
     # comprobar errores de entrada
-    fileNameIn = sys.argv[1]
-    fileNameOut = sys.argv[2]
+    inFileName = sys.argv[1]
+    outFileName = sys.argv[2]
 
     # Los siguientes valores se podrán meter como parámetros al programa, sobre
     # todo al usar interfaz gráfica. Por defecto valores siguientes:
@@ -835,26 +844,35 @@ def main():
     newDateFormat = "%d-%m-$Y %H:%M:%S"
     newDayFormat = "%d-%m-$Y"
     
-    inFields = ["User_ID", "UTC_Time", "Account", "Operation", "Coin", \
+    inFieldNames = ["User_ID", "UTC_Time", "Account", "Operation", "Coin", \
             "Change", "Remark"]
-    outFields = ["Tipo", "Operacion", "Compra", "MonedaC", "Venta", "MonedaV", \
-            "Comision", "MonedaF", "Exchange", "Grupo", "Comentario", "Fecha"]
-    outGets = []
+    outFieldNames = ["Tipo", "Operacion", "Compra", "MonedaC", "Venta", \
+            "MonedaV", "Comision", "MonedaF", "Exchange", "Grupo", \
+            "Comentario", "Fecha"]
+    outGets = [getType, getOp, getOpValue, getComment]
+    outTypes = ["Staking", "Polvo", "Operación", "Deposito", "Retirada"]
+    outOps = ["Compra", "Venta", "Comision"]
 
-    fieldsGetsValues = \
-            {outFields[0]: [getType, [inFields[3]]], \
-             outFields[1]: [getOp, [inFields[3]]], \
-             outFields[2]: [getOpValue, [inFields[3], inFields[5]]], \
-             outFields[3]: [None, [inFields[4]]], \
-             outFields[4]: [getOpValue, [inFields[3], inFields[5]]], \
-             outFields[5]: [None, [inFields[4]]], \
-             outFields[6]: [getOpValue, [inFields[3], inFields[5]]], \
-             outFields[7]: [None, [inFields[4]]], \
-             outFields[8]: [lambda: "Binance", None], \
-             outFields[10]: [getComment, [inFields[6], inFields[3]]], \
-             outFields[11]: [wrapFunction(applyDateFormat, dateFormat, \
-             newDateFormat), [inFields[1]]]}
+    outFieldsGetsValues = \
+            {outFieldNames[0]: [getType, [inFieldNames[3]]], \
+             outFieldNames[1]: [getOp, [inFieldNames[3]]], \
+             outFieldNames[2]: [getOpValue, [inFieldNames[3], \
+                inFieldNames[5]]], \
+             outFieldNames[3]: [None, [inFieldNames[4]]], \
+             outFieldNames[4]: [getOpValue, [inFieldNames[3], \
+                inFieldNames[5]]], \
+             outFieldNames[5]: [None, [inFieldNames[4]]], \
+             outFieldNames[6]: [getOpValue, [inFieldNames[3], \
+                inFieldNames[5]]], \
+             outFieldNames[7]: [None, [inFieldNames[4]]], \
+             outFieldNames[8]: [lambda: "Binance", None], \
+             outFieldNames[10]: [getComment, [inFieldNames[6], \
+                inFieldNames[3]]], \
+             outFieldNames[11]: [wrapf(applyDateFormat, dateFormat, \
+             newDateFormat), [inFieldNames[1]]]}
 
+    typeMergeKeys = \
+            {outTypes[0]: [mergeStakingTrxns, [outFieldNames[3], outFieldNames[2]), [):
     configTrxnBlockId = \
             {"function": lambda v: applyDateFormat(v, dateFormat, dayFormat), \
              "keys": [dateFieldNameOut]}
