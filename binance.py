@@ -37,6 +37,7 @@ import utilidades.util as u
 import datetime as dt
 import collections as cl
 import logging as log
+import operator as op
 import sys
 import csv
 
@@ -293,9 +294,8 @@ trxnErrors = \
             "Tipo incorrecto de transacciones en el grupo.", \
          "COIN_GROUP_STAKING": \
             "Distintas monedas al agrupar por staking", \
-         "DUP_ASIGN_PROCESS_TRXN": \
-            "No se puede asignar a un campo en la nueva transacción \
-            directamente el valor de más de un campo de la antigua transacción"
+         "EMPTY_GET_PROCESS_TRXN": \
+            "No existe la función para obtener el nuevo valor del campo."
         }
 
 
@@ -833,6 +833,8 @@ def getOpValue():
 
 def getComment(oldComment, trxnType):
     
+def getDate(strDate, dateFormat, newDateFormat):
+    return 
 
 def main():
     """
@@ -882,56 +884,85 @@ def main():
     outOps = ["Compra", "Venta", "Comision"]
 
     outFieldsGetsValues = \
-            {outFieldNames[0]: [getType, [inFieldNames[3]]], \
-             outFieldNames[1]: [getOp, [inFieldNames[3]]], \
-             outFieldNames[2]: [getOpValue, [inFieldNames[3], \
-                inFieldNames[5]]], \
-             outFieldNames[3]: [None, [inFieldNames[4]]], \
-             outFieldNames[4]: [getOpValue, [inFieldNames[3], \
-                inFieldNames[5]]], \
-             outFieldNames[5]: [None, [inFieldNames[4]]], \
-             outFieldNames[6]: [getOpValue, [inFieldNames[3], \
-                inFieldNames[5]]], \
-             outFieldNames[7]: [None, [inFieldNames[4]]], \
-             outFieldNames[8]: [lambda: "Binance", None], \
-             outFieldNames[10]: [getComment, [inFieldNames[6], \
-                inFieldNames[3]]], \
-             outFieldNames[11]: [wrapf(applyDateFormat, dateFormat, \
-             newDateFormat), [inFieldNames[1]]]}
+            {outFieldNames[0]: wrapGetTrxnValue(getType, inFieldNames[3]), \
+             outFieldNames[1]: wrapGetTrxnValue(getOp, inFieldNames[3]), \
+             outFieldNames[2]: wrapGetTrxnValue(getOpValue, inFieldNames[3], \
+                inFieldNames[5]), \
+             **dict.fromkeys([outFieldNames[3], outFieldNames[5], \
+                outFieldNames[7]], op.itemgetter(inFieldNames[4])), \
+             outFieldNames[4]: wrapGetTrxnValue(getOpValue, inFieldNames[3], \
+                inFieldNames[5]), \
+             outFieldNames[6]: wrapGetTrxnValue(getOpValue, inFieldNames[3], \
+                inFieldNames[5]), \
+             outFieldNames[8]: lambda x: "Binance", \
+             outFieldNames[10]: wrapGetTrxnValue(getComment, inFieldNames[6], \
+                inFieldNames[3]), \
+             outFieldNames[11]: wrapGetTrxnValue(wrapf(applyDateFormat, \
+                dateFormat, newDateFormat), inFieldNames[1])}
 
-    typeMergeKeys = \
-            {outTypes[0]: [mergeStakingTrxns, [outFieldNames[3], outFieldNames[2]), [):
-    configTrxnBlockId = \
+    typeMerges = \
+            {outTypes[0]: wrapf(mergeStakingTrxns, outFieldNames[3], \
+                outFieldNames[2]), \
+             outTypes[1]: wrapf(mergeDustTrxns, outFieldNames[3], \
+                outFieldNames[2], outFieldNames[5], outFieldNames[4], \
+                outFieldNames[10]), \
+             outTypes[2]: wrapf(mergeTradeTrxns, outFieldNames[3], \
+                outFieldNames[2], outFieldNames[5], outFieldNames[4], \
+                outFieldNames[7], outFieldNames[6], outFieldNames[10])}
+    getsBlockId = \
             {"function": lambda v: applyDateFormat(v, dateFormat, dayFormat), \
              "keys": [dateFieldNameOut]}
-    configTrxnGroupId = \
-            {"staking": [lambda v: getValueWithDate(dateFormat, dayFormat, v),\
-                [dateFieldNameOut, typeFieldNameOut, coinFieldNameOut]],
+    # Las distintas formas de obtener el groupId tienen que tener en común
+    # que el primer o último campo sea el tipo, ya que todos los groupId, 
+    # aunque se obtengan de manera distinta dependiendo del tipo de la trxn,
+    # debe ser único entre todos los groupId de todas las trxns.
+    getGroupIdByType = \
+            {outTypes[0]: wrapGetTrxnValue(wrapf(getGroupId, \
+                getValue=joinStrValues, valueParsers=\
+                {2: wrapf(applydateFormat, newDateFormat, newDayFormat)}), \
+                outFieldNames[0], outFieldNames[3], outFieldNames[11]), \
+             **dict.fromkeys([outTypes[1], outTypes[2]], \
+                wrapGetTrxnValue(getGroupId, outFieldNames[0], \
+                outFieldNames[11])),
+             **dict.fromkeys([outTypes[3], outTypes[4]], \
+                wrapGetTrxnValue(getGroupId, outFieldNames[0], \
+                outFieldNames[3], outFieldNames[11])),
+            } 
 
     isCsvInToMem = True
     isCsvOutToMem = True
     
-    fileIn = open(fileNameIn, newline='')
-    csvIn = csvOpen(fileIn, 'r', isDict=True)
+    inFile = open(inFileName, newline='')
+    csvIn = csvOpen(inFile, 'r', isDict=True)
     trxnsIn = [trxn for trxn in csvIn] if isCSVInToMem else csvIn
 
-    csvOut = open(fileNameIn, "w", newline='') if isCsvOutToMem else None
+    outFile = open(outFileName, "w", newline='')
+    csvOut = None if isCsvOutToMem else csvOpen(outFile, 'w', dialect="excel", \
+            isDict=True, fieldnames=outFieldNames)
+    
     # Dar antes la opción de agrupar las transacciones itertools groupby 
-    outTrxns = csvProcessTrxns(trxnsIn, wrapf(processTrxn,outFieldsGetsValues),\
-            csvOut, wrapf(mergeTrxnsGroupsByField, outFieldNames[0], typeMergeKeys),)
+    
+    processTrxn = wrapf(processNewTrxnKeys, outFieldsGetsValues)
+    mergeTrxnsGroups = wrapf(mergeTrxnsGroupsByType, outFieldNames[0], \
+            typeMerges)
+    getTrxnBlockId = wrapGetTrxnValue(wrapf(applyDateFormat, newDateFormat, \
+            newDayFormat), outFieldNames[11])
+    getTrxnGroupId = wrapf(getTrxnValueByField, outFieldNames[0], \
+            getGroupIdByType)
+    outTrxns = csvProcessTrxns(trxnsIn, processTrxn, csvOut, mergeTrxnsGroups, \
+            getTrxnGroupId, getTrxnBlockId)
 
+    inFile.close()
 
     if isCsvOutToMem: 
-        csvOut = csvOpen(fileNameOut, 'w', dialect="excel", isDict=True, \
-                fieldnames=fieldNamesOut)
+        csvOut = csvOpen(outFile, 'w', dialect="excel", isDict=True, \
+                fieldnames=outFieldNames)
         csvOut.writeheader()
-        csvWriteRows(csvOut, outTrxns, fieldNamesInOut)
+        csvOut.writerows(outTrxns)
 
-    # cerrar el archivo csv abierto
+    outFile.close()
 
 
-def csvProcessTrxns(trxnsIn, processTrxn, csvOut=None, \
-        mergeTrxnsGroupsByType=None, getGroupId=None, getBlockId=None)
 
 if __name__ in ("__main__", "__console__"):
     main()
