@@ -211,28 +211,64 @@ def joinStrValues(*values):
 
 
 
-def getValueWithDate(getValue, dateFormat, newDateFormat, date, *values):
+
+def getParsedValue(*values, getValue=joinStrValues, valueParses=None):
     """
-    Función que obtiene un valor a partir de un conjunto de valores usando
-    un metodo pasado como argumento. Antes de obtener el valor resultado se
-    cambia el formato de la fecha, la cual, una vez transformada, se incluye
-    al final de la lista de valores para obtener el valor resultante.
+    Obtener un valor a partir de una serie de valores. Antes de obtener el valor
+    se pueden parsear cada uno de los valores. Los nuevos valores obtenidos son
+    los que usarán para generar el valor.
 
     ARGUMENTOS:
-        - getValue: función a usar para obtener un nuevo valor a partir
-        de la lista de valores (incluyendo la fecha modificada al final)
-        - date: Cadena str representando una fecha.
-        - dateFormat: formato de la fecha.
-        - newDateFormat: nuevo formato a aplicar a la fecha.
-        - values: lista de valores a partir de los cuales obtener nuevo valor
-        resultado.
+        - values: valores para generar el nuevo valor.
+        - getValue: función para obtener el valor a partir de los valores
+        ya parseados. Los argumentos pasados a esta función son typeValue
+        en primero lugar, seguido de los valores en values.
+        - valueParsers: diccionario con las funciones a usar para parsear los
+        valores. La clave de cada parser tiene que ser un entero (o convertible
+        a entero) e indica la posición del argumento a parsear
+        0 se refiere a typeValue.
 
     RETORNO:
-        Valor resultado de aplicar getValue a la lista de valores,
-        incluyendo la fecha modificada al final de la lista de valores.
+        Valor resultado de aplicar getValue a la lista de valores parseados.
     """
-    newDate = applyDateFormat(date, dateFormat, newDateFormat)
-    return getValue(*values, newDate) 
+   
+    if valueParsers is not None:
+        for index, parser in valueParsers.items():
+            values[index] = parser(value[int(index)])
+
+    getValue(*values)
+
+
+
+
+# Intentar hacer las funciones que obtienen valores de grupo de manera genérica.
+def getGroupId(typeValue, *values, getValue=joinStrValues, valueParsers=None):
+    """
+    Obtener el valor que representa el groupId a partir de los valores de una
+    serie de campos pertenecientes a una transacción. Antes de obtener el valor
+    groupId se pueden parsear cada uno de los valores. Los nuevos valores
+    obtenidos son los que usarán para generar el groupId.
+    Tener en cuenta que getValue debe obtener un valor único para cada cjto de
+    valores (typeValue+values) pasado.
+
+    ARGUMENTOS:
+        - typeValue: tipo de transacción. Es necesario siempre para evitar que
+        transacciones de distintos tipos generen mismos groupId.
+        - values: resto de valores para obtener el groupId.
+        - getValue: función para obtener el valor a partir de los valores
+        ya parseados. Los argumentos pasados a esta función son typeValue
+        en primero lugar, seguido de los valores en values.
+        - valueParsers: diccionario con las funciones a usar para parsear los
+        valores. La clave de cada parser tiene que ser un entero (o convertible
+        a entero) e indica la posición del argumento a parsear
+        0 se refiere a typeValue.
+
+    RETORNO:
+        GroupId resultado de aplicar getValue a la lista de valores parseados.
+    """
+    values.insert(0, typeValue)
+    getParsedValue(*values, getValue=getValue, valueParsers=valueParsers)
+
 
 
 
