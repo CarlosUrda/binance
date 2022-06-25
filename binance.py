@@ -293,17 +293,17 @@ def getTrxnValue(trxn, getValue, *keys):
 # transacción tras haber sido procesado cada uno de los valores. Mezcla de
 # getTrxnValue y processTrxn
 
-def getTrxnValueByType(trxn, typeKey, mapGetValueKeysByType):
+def getTrxnValueByType(trxn, fieldKey, mapGetValueKeysByType):
     """
     Obtener de manera genérica un solo valor a partir de una transacción, pero
-    el método aplicado para obtener dicho valor depende del contenido del
-    campo de la transacción considerado como tipo.
+    el método aplicado para obtener dicho valor depende del contenido de un
+    campo de la transacción.
 
     ARGUMENTOS:
         - trxn: Transacción a partir de la cual obtener el valor. Puede ser una
         secuencia o un mapping.
-        - typeKey: clave o índice donde se encuentra el valor a ser considerado
-        como tipo de de la transacción.
+        - fieldKey: clave o índice donde se encuentra el valor a ser considerado
+        como campo referencia de la transacción.
         - mapGetValueKeysByType: Diccionario donde por cada tipo (clave) existe
         una lista con un par de valores: función para procesar valores y lista
         de claves cuyos valores en la transacción serán procesados por la 
@@ -314,7 +314,7 @@ def getTrxnValueByType(trxn, typeKey, mapGetValueKeysByType):
         Valor obtenido a partir de la transacción en función de su tipo.
     """
 
-    getValue, keys = mapGetValueKeysByType[trxn[typeKey]]
+    getValue, keys = mapGetValueKeysByType[trxn[fieldKey]]
     return getTrxnValue(trxn, getValue, *keys)
 
 
@@ -650,18 +650,18 @@ def mergeDustTrxns(trxns, buyCoinIndex, buyValueIndex, sellCoinIndex, \
 
 
 # Cada groupId debe ser único, sean los grupos del mismo tipo o no
-def mergeTrxnsGroupsByType(trxnsGroups, typeIndex, typeMergesKeys):
+def mergeTrxnsGroupsByField(trxnsGroups, fieldIndex, fieldMergesKeys):
     """
     Realiza la unión, por cada grupo, de una lista de transacciones candidatas
     a ser juntadas en una sola transacción. El método usado para realizar el
-    merge de las transacciones depende del tipo de la transacción.
+    merge de las transacciones depende de un campo de la transacción.
 
     ARGUMENTOS:
         - trxnsGroups: lista de listas o grupos de transacciones a realizar 
         merge por grupo.
-        - typeIndex: clave/índice de la transacción donde se encuentra el valor
-        del tipo.
-        - typeMergesKeys: diccionario que empareja cada tipo de transacción con
+        - fieldIndex: clave/índice de la transacción donde se encuentra el valor
+        del campo.
+        - fieldMergesKeys: diccionario que empareja cada tipo de transacción con
         una lista que contiene el método a usar para unir las transacciones del
         mismo grupo y una lista de claves/índices de la transacción cuyos
         valores serán necesarios para aplicar el merge correctamente.
@@ -672,12 +672,12 @@ def mergeTrxnsGroupsByType(trxnsGroups, typeIndex, typeMergesKeys):
    
     outTrxns = []
     for trxnsGroup in trxnsGroups:
-        groupType = trxnsGroup[0][typeIndex]
-        mergesKeys = typeMergesKeys[groupType]
+        groupField = trxnsGroup[0][fieldIndex]
+        mergesKeys = fieldMergesKeys[groupField]
         try:
             outTrxns.extend(mergesKeys[0](trxnsGroup, *mergesKeys[1]))
         except BaseException as e:
-            log.exception(f"Error merge grupo {groupType}: {trxnsGroup}")
+            log.exception(f"Error merge grupo {groupField}: {trxnsGroup}")
             raise e
             # Lanzar excepción creada
 
@@ -889,9 +889,9 @@ def main():
 
     csvOut = open(fileNameIn, "w", newline='') if isCsvOutToMem else None
     # Dar antes la opción de agrupar las transacciones itertools groupby 
-    outTrxns = csvProcessTrxns(trxnsIn, wrapFunction(processTrxn, \
-            fieldsGetsValues), dateFormat, \
-            isCsvOutToMem, csvOut, fieldNamesInOut)
+    outTrxns = csvProcessTrxns(trxnsIn, wrapf(processTrxn,outFieldsGetsValues),\
+            csvOut, wrapf(mergeTrxnsGroupsByField, outFieldNames[0], typeMergeKeys),)
+
 
     if isCsvOutToMem: 
         csvOut = csvOpen(fileNameOut, 'w', dialect="excel", isDict=True, \
