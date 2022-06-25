@@ -327,9 +327,9 @@ def getTrxnValue(trxn, getValue, *keys):
 
 # Crear función que aplique una función al conjunto de valores de una
 # transacción tras haber sido procesado cada uno de los valores. Mezcla de
-# getTrxnValue y processTrxn
+# getTrxnValue y processNewTrxnKeys
 
-def getTrxnValueByType(trxn, fieldKey, mapGetValueKeysByType):
+def getTrxnValueByField(trxn, fieldKey, fieldGetsTrxnValue):
     """
     Obtener de manera genérica un solo valor a partir de una transacción, pero
     el método aplicado para obtener dicho valor depende del contenido de un
@@ -340,18 +340,15 @@ def getTrxnValueByType(trxn, fieldKey, mapGetValueKeysByType):
         secuencia o un mapping.
         - fieldKey: clave o índice donde se encuentra el valor a ser considerado
         como campo referencia de la transacción.
-        - mapGetValueKeysByType: Diccionario donde por cada tipo (clave) existe
-        una lista con un par de valores: función para procesar valores y lista
-        de claves cuyos valores en la transacción serán procesados por la 
-        función anterior. La función solo puede recibir como argumentos los
-        valores de los campos de la transación a ser procesados.
+        - fieldGetsTrxnValue: Diccionario donde por cada clave campo existe
+        una función para obtener un valor a partir de la transacción.
 
     RETORNO:
-        Valor obtenido a partir de la transacción en función de su tipo.
+        Valor obtenido a partir de la transacción en función del campo
     """
 
-    getValue, keys = mapGetValueKeysByType[trxn[fieldKey]]
-    return getTrxnValue(trxn, getValue, *keys)
+    getTrxnValue = fieldGetsTrxnValue[trxn[fieldKey]]
+    return getTrxnValue(trxn)
 
 
 
@@ -377,8 +374,7 @@ def wrapGetTrxnValue(getValue, *keys):
         Esta función podría eliminarse y donde se usa escribir directamente la
         función lambda.
     """
-
-    return lambda trxn: getTrxnValue(trxn, getValue, *keys)
+    return wrapf(getTrxnValue, getValue, *keys)
 
 
 
@@ -417,7 +413,7 @@ def wrapGetTrxnValueByType(typeKey, mapGetValueKeysByType):
 
 # Los campos que no tienen valores se dejan sin clave si es diccionario. Si
 # es lista se deja vacío.
-def processTrxn(trxn, newKeysProcess):
+def processNewTrxnKeys(trxn, newKeysProcess):
     """
     A partir de una transacción obtener una nueva cambiando sus claves/índices y
     valores.
@@ -426,10 +422,8 @@ def processTrxn(trxn, newKeysProcess):
         - trxn: transacción a partir de la cual se obtendrá una nueva. Puede ser
         diccionario o secuencia.
         - newKeysProcess: diccionario/lista donde cada clave/índice es la nueva
-        clave/índice de la nueva transacción y el valor es una lista de dos 
-        elementos: 
-            * primer elemento es la función a aplicar para obtener el nuevo
-            valor para la nueva clave/índice.
+        clave/índice de la nueva transacción y el valor es la función a aplicar
+        para obtener el nuevo valor para la nueva clave/índice.
             * segundo elemento es una lista de claves/índices de la transacción
             cuyos valores serán usados por la función para obtener el nuevo
             valor. La función solo puede recibir por argumentos valores a partir
@@ -458,25 +452,19 @@ def processTrxn(trxn, newKeysProcess):
         newKeysProcess = newKeysProcess.enumerate()
         outTrxn = [None] * len(newKeysProcess)
         
-    for newKey, getValueKeys in newKeysProcess:
-        getValue, keys = getValueKeys
-        if keys is None:
-            keys = []
-        assert getValue is None and length(keys) != 1, \
-                trxnErrors["DUP_ASIGN__PROCESS_TRXN"] + f": {keys}"
-        elif getValue is None
-            outTrxn[newKey] = trxn[keys[0]]
-            continue
-        outTrxn[newKey] = getTrxnValue(trxn, getValue, keys)
+    for newKey, getValue in newKeysProcess:
+        assert getValue is None
+                trxnErrors["EMPTY_GET__PROCESS_TRXN"] + f": {newKey}"
+        outTrxn[newKey] = getValue(trxn)
 
     return outTrxn
 
 
 
 
-def wrapProcessTrxn(newKeysProcess):
+def wrapProcessNewTrxnKeys(newKeysProcess):
     """
-    Función que envuelve processTrxn para obtener una función que 
+    Función que envuelve processiNewTrxnKeys para obtener una función que 
     reciba solo una transacción y obtenga una nueva transacción usando la
     configuración de las nuevas claves recibidas en el wrap.
 
@@ -500,7 +488,7 @@ def wrapProcessTrxn(newKeysProcess):
         asociadas no tiene un solo elemento.
     """
 
-    return lambda trxn: processTrxn(trxn, newKeysProcess)
+    return lambda trxn: processNewTrxnKeys(trxn, newKeysProcess)
 
 
 
@@ -686,7 +674,7 @@ def mergeDustTrxns(trxns, buyCoinIndex, buyValueIndex, sellCoinIndex, \
 
 
 # Cada groupId debe ser único, sean los grupos del mismo tipo o no
-def mergeTrxnsGroupsByField(trxnsGroups, fieldIndex, fieldMergesKeys):
+def mergeTrxnsGroupsByType(trxnsGroups, typeIndex, typeMerges):
     """
     Realiza la unión, por cada grupo, de una lista de transacciones candidatas
     a ser juntadas en una sola transacción. El método usado para realizar el
@@ -695,12 +683,13 @@ def mergeTrxnsGroupsByField(trxnsGroups, fieldIndex, fieldMergesKeys):
     ARGUMENTOS:
         - trxnsGroups: lista de listas o grupos de transacciones a realizar 
         merge por grupo.
-        - fieldIndex: clave/índice de la transacción donde se encuentra el valor
-        del campo.
-        - fieldMergesKeys: diccionario que empareja cada tipo de transacción con
-        una lista que contiene el método a usar para unir las transacciones del
-        mismo grupo y una lista de claves/índices de la transacción cuyos
-        valores serán necesarios para aplicar el merge correctamente.
+        - typeIndex: clave/índice de la transacción donde se encuentra el valor
+        del campo. Se parte del hecho de que todas las transacciones de un
+        mismo grupo tienen el mismo valor para ese campo.
+        - typeMerges: diccionario que empareja por valor del campo de las
+        transacciones del grupo la función a usar para unir las transacciones de
+        un mismo grupo. Esta función recibirá como argumentos una lista de
+        transacciones del mismo grupo a realizar el merge.
 
     RETORNO:
         Transacción resultado de la unión de las transacciones del mismo grupo.
@@ -708,12 +697,11 @@ def mergeTrxnsGroupsByField(trxnsGroups, fieldIndex, fieldMergesKeys):
    
     outTrxns = []
     for trxnsGroup in trxnsGroups:
-        groupField = trxnsGroup[0][fieldIndex]
-        mergesKeys = fieldMergesKeys[groupField]
+        groupType = trxnsGroup[0][typeIndex]
         try:
-            outTrxns.extend(mergesKeys[0](trxnsGroup, *mergesKeys[1]))
+            outTrxns.extend(typeMerges[groupType](trxnsGroup))
         except BaseException as e:
-            log.exception(f"Error merge grupo {groupField}: {trxnsGroup}")
+            log.exception(f"Error merge grupo {groupType}: {trxnsGroup}")
             raise e
             # Lanzar excepción creada
 
@@ -732,9 +720,6 @@ def wrapMergeGroupTrxnsByType(typeIndex, typeMerges):
 
 
 
-
-
-
 # El valor del tipo usado para obtener la clave groupId debe estar al inicio o
 # final de los valores usados para obtener groupId. Esto se hace para evitar que
 # dos groupId de dos transacciones con tipos distinto (obtenidos a partir de 
@@ -743,8 +728,8 @@ def wrapMergeGroupTrxnsByType(typeIndex, typeMerges):
 # Los valores del tipo de transacción deben ser un inmutable, ya que si no, no
 # puede usarse como clave en el diccionario pasado a getTrxnValueByType.
 
-def csvProcessTrxns(trxnsIn, processTrxn, csvOut=None, \
-        mergeTrxnsGroupsByType=None, getGroupId=None, getBlockId=None)
+def csvProcessTrxns(trxnsIn, processTrxn, csvOut=None, mergeTrxnsGroups=None, \
+        getTrxnGroupId=None, getTrxnBlockId=None)
     """
     Procesar todas las transacciones.
 
@@ -782,6 +767,9 @@ def csvProcessTrxns(trxnsIn, processTrxn, csvOut=None, \
         transacciones (merge) deben ser solo entre las transacciones de un mismo
         bloque
 
+        Merge y get se aplican sobre las transacciones ya precesadas con los
+        nuevos campos.
+
     RETORNO:
         - csvOut == None: lista resultante de todas las transacciones de
         entrada procesadas.
@@ -792,10 +780,14 @@ def csvProcessTrxns(trxnsIn, processTrxn, csvOut=None, \
         
     """
     trxnsGroups = cl.OrderedDict()
-    outTrxns = [] if (csvOut is None) else 0
+    if csvOut is None:
+        outTrxns = []
+    else:
+        outTrxns = 0
+        csvOut.writeheader()
     prevBlockId = None
-    doMerge = mergeTrxnsGroupsByType is not None and getGroupId is not None
-    doBlocks = getBlockId is not None
+    doMerge = mergeTrxnsGroups is not None and getTrxnGroupId is not None
+    doBlocks = getTrxnBlockId is not None
 
     for trxn in trxnsIn:
         trxn = processTrxn(trxn)
@@ -808,9 +800,9 @@ def csvProcessTrxns(trxnsIn, processTrxn, csvOut=None, \
             continue
 
         if (doBlocks):
-            blockId = getBlockId(trxn)
+            blockId = getTrxnBlockId(trxn)
         if (prevBlockId is not None and prevBlockId != blockId):
-            tempOutTrxns = mergeTrxnsGroupsByType(trxnsGroups.values())
+            tempOutTrxns = mergeTrxnsGroups(trxnsGroups.values())
             if (csvOut is None):
                 outTrxns.extend(tempOutTrxns)
             else:
@@ -818,13 +810,13 @@ def csvProcessTrxns(trxnsIn, processTrxn, csvOut=None, \
             prevBlockId = blockId
             trxnsGroups = cl.OrderedDict()
 
-        groupId = getGroupId(trxn)
+        groupId = getTrxnGroupId(trxn)
         if (groupId not in trxnsGroups)
             trxnsGroups[groupId] = []
         trxnsGroups[groupId].append(trxn)
 
     if (doMerge):
-        tempOutTrxns = mergeTrxnsGroupsByType(trxnsGroups.values())
+        tempOutTrxns = mergeTrxnsGroups(trxnsGroups.values())
         if (csvOut is None):
             outTrxns.extend(tempOutTrxns)
         else:
