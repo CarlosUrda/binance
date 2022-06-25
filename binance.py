@@ -445,6 +445,8 @@ def processNewTrxnKeys(trxn, newKeysProcess):
         asociadas no tiene solo un elemento.
     """
 
+    # Ignorar ciertas operaciones savings purchase
+    # Depósito y retrada ****
     try:
         newKeysProcess = newKeysProcess.items()
         outTrxn = cl.OrderedDict()
@@ -686,10 +688,11 @@ def mergeTrxnsGroupsByType(trxnsGroups, typeIndex, typeMerges):
         - typeIndex: clave/índice de la transacción donde se encuentra el valor
         del campo. Se parte del hecho de que todas las transacciones de un
         mismo grupo tienen el mismo valor para ese campo.
-        - typeMerges: diccionario que empareja por valor del campo de las
-        transacciones del grupo la función a usar para unir las transacciones de
-        un mismo grupo. Esta función recibirá como argumentos una lista de
-        transacciones del mismo grupo a realizar el merge.
+        - typeMerges: diccionario que empareja por tipo de transacción del
+        grupo una función para unir las transacciones de un mismo grupo. 
+        Esta función recibirá como argumentos una lista de transacciones del 
+        mismo grupo a realizar el merge. Si un tipo no tiene merge en este
+        diccionario, las transacciones del grupo no se modifican.
 
     RETORNO:
         Transacción resultado de la unión de las transacciones del mismo grupo.
@@ -699,7 +702,7 @@ def mergeTrxnsGroupsByType(trxnsGroups, typeIndex, typeMerges):
     for trxnsGroup in trxnsGroups:
         groupType = trxnsGroup[0][typeIndex]
         try:
-            outTrxns.extend(typeMerges[groupType](trxnsGroup))
+            outTrxns.extend(typeMerges.get(groupType, lambda x:x)](trxnsGroup))
         except BaseException as e:
             log.exception(f"Error merge grupo {groupType}: {trxnsGroup}")
             raise e
@@ -825,16 +828,67 @@ def csvProcessTrxns(trxnsIn, processTrxn, csvOut=None, mergeTrxnsGroups=None, \
     return outTrxns 
 
 
-def getType():
 
-def getOp():
 
-def getOpValue():
+# Los siguientes valores se podrán meter como parámetros al programa, sobre
+# todo al usar interfaz gráfica. Por defecto valores siguientes:
+dateFormat = "%Y-%m-$d %H:%M:%S"
+newDateFormat = "%d-%m-$Y %H:%M:%S"
+newDayFormat = "%d-%m-$Y"
+
+inFieldNames = ["User_ID", "UTC_Time", "Account", "Operation", "Coin", \
+        "Change", "Remark"]
+outFieldNames = ["Tipo", "Operacion", "Compra", "MonedaC", "Venta", "MonedaV",\
+        "Comision", "MonedaF", "Exchange", "Grupo", "Comentario", "Fecha"]
+outGets = [getType, getOp, getOpValue, getComment]
+outTypes = ["Staking", "Polvo", "Operación", "Deposito", "Retirada"]
+inTypes = ["Deposit", "Withdraw", "Small assets exchange BNB", "Fee", "Buy", \
+        "Sell", "Transaction Related", "POS savings interest", \
+        "Super BNB Mining", "Savings Interest"]
+outOps = ["Comision", "Compra", "Venta"]
+
+
+def getType(operation):
+    parseType = { \
+            inTypes[0]: outTypes[3], \
+            inTypes[1]: outTypes[4], \
+            inTypes[2]: outTypes[1], \
+            **dict.fromkeys([inTypes[3], inTypes[4], inTypes[5], inTypes[6]], \
+                outTypes[2]), 
+            **dict.fromkeys([inTypes[7], inTypes[8], inTypes[9]], outTypes[0])}
+    return parseType.get(operation, None)
+
+
+def getOp(operation):
+    parseOp = { \
+            inTypes[3]: outOps[0]
+            }
+    return parseType.get(operation, "")
+
+
+def getOpValue(operation, value, newField):
+    value = float(value)
+
+    if (newField==outFieldNames[6] and operation==inTypes[3]) or \
+       (newField==outFieldNames[4] and (operation==inTypes[3] or value<0)) or \
+       (newField==outFieldNames[2] and operation!=inTypes[3] and value>0):
+            return str(abs(value))
+    return ""
+
+
+def getCoin(operation, value, coin, newField):
+    value = float(value)
+
+    if (newField==outFieldNames[7] and operation==inTypes[3]) or \
+       (newField==outFieldNames[5] and (operation==inTypes[3] or value<0)) or \
+       (newField==outFieldNames[3] and operation!=inTypes[3] and value>0):
+            return coin 
+    return ""
+
 
 def getComment(oldComment, trxnType):
+    pass
     
-def getDate(strDate, dateFormat, newDateFormat):
-    return 
 
 def main():
     """
@@ -868,35 +922,27 @@ def main():
     inFileName = sys.argv[1]
     outFileName = sys.argv[2]
 
-    # Los siguientes valores se podrán meter como parámetros al programa, sobre
-    # todo al usar interfaz gráfica. Por defecto valores siguientes:
-    dateFormat = "%Y-%m-$d %H:%M:%S"
-    newDateFormat = "%d-%m-$Y %H:%M:%S"
-    newDayFormat = "%d-%m-$Y"
-    
-    inFieldNames = ["User_ID", "UTC_Time", "Account", "Operation", "Coin", \
-            "Change", "Remark"]
-    outFieldNames = ["Tipo", "Operacion", "Compra", "MonedaC", "Venta", \
-            "MonedaV", "Comision", "MonedaF", "Exchange", "Grupo", \
-            "Comentario", "Fecha"]
-    outGets = [getType, getOp, getOpValue, getComment]
-    outTypes = ["Staking", "Polvo", "Operación", "Deposito", "Retirada"]
-    outOps = ["Compra", "Venta", "Comision"]
 
     outFieldsGetsValues = \
             {outFieldNames[0]: wrapGetTrxnValue(getType, inFieldNames[3]), \
              outFieldNames[1]: wrapGetTrxnValue(getOp, inFieldNames[3]), \
-             outFieldNames[2]: wrapGetTrxnValue(getOpValue, inFieldNames[3], \
-                inFieldNames[5]), \
-             **dict.fromkeys([outFieldNames[3], outFieldNames[5], \
-                outFieldNames[7]], op.itemgetter(inFieldNames[4])), \
-             outFieldNames[4]: wrapGetTrxnValue(getOpValue, inFieldNames[3], \
-                inFieldNames[5]), \
-             outFieldNames[6]: wrapGetTrxnValue(getOpValue, inFieldNames[3], \
-                inFieldNames[5]), \
+             outFieldNames[2]]: wrapGetTrxnValue(wrapf(getOpValue, \
+                outFieldNames[2]), inFieldNames[3], inFieldNames[5]), \
+             outFieldNames[4]]: wrapGetTrxnValue(wrapf(getOpValue, \
+                outFieldNames[4]), inFieldNames[3], inFieldNames[5]), \
+             outFieldNames[6]]: wrapGetTrxnValue(wrapf(getOpValue, \
+                outFieldNames[6]), inFieldNames[3], inFieldNames[5]), \
+             outFieldNames[3]]: wrapGetTrxnValue(wrapf(getCoin, \
+                outFieldNames[2]), inFieldNames[3], inFieldNames[5], \
+                inFieldNames[4]), \
+             outFieldNames[5]]: wrapGetTrxnValue(wrapf(getCoin, \
+                outFieldNames[4]), inFieldNames[3], inFieldNames[5]), \
+                inFieldNames[4]), \
+             outFieldNames[7]]: wrapGetTrxnValue(wrapf(getCoin, \
+                outFieldNames[6]), inFieldNames[3], inFieldNames[5]), \
+                inFieldNames[4]), \
              outFieldNames[8]: lambda x: "Binance", \
-             outFieldNames[10]: wrapGetTrxnValue(getComment, inFieldNames[6], \
-                inFieldNames[3]), \
+             outFieldNames[10]: op.itemgetter(inFieldNames[6]), \
              outFieldNames[11]: wrapGetTrxnValue(wrapf(applyDateFormat, \
                 dateFormat, newDateFormat), inFieldNames[1])}
 
@@ -909,9 +955,9 @@ def main():
              outTypes[2]: wrapf(mergeTradeTrxns, outFieldNames[3], \
                 outFieldNames[2], outFieldNames[5], outFieldNames[4], \
                 outFieldNames[7], outFieldNames[6], outFieldNames[10])}
-    getsBlockId = \
-            {"function": lambda v: applyDateFormat(v, dateFormat, dayFormat), \
-             "keys": [dateFieldNameOut]}
+    #getsBlockId = \
+    #        {"function": lambda v: applyDateFormat(v, dateFormat, dayFormat), \
+    #         "keys": [dateFieldNameOut]}
     # Las distintas formas de obtener el groupId tienen que tener en común
     # que el primer o último campo sea el tipo, ya que todos los groupId, 
     # aunque se obtengan de manera distinta dependiendo del tipo de la trxn,
