@@ -602,6 +602,8 @@ def mergeTradeTrxns(trxns, buyCoinIndex, buyValueIndex, sellCoinIndex, \
                 outTrxn[coinIndex] = inCoin
                 outTrxn[valueIndex] = getItem(trxn, valueIndex, "")
 
+    outTrxn[commentIndex] = f"{outTrxn[sellCoinIndex]}=>{outTrxn[buyCoinIndex]}"
+
     if feeTrxn is None:
         return outTrxns
 
@@ -621,60 +623,9 @@ def mergeTradeTrxns(trxns, buyCoinIndex, buyValueIndex, sellCoinIndex, \
         outTrxn[feeValueIndex] = getItem(feeTrxn, feeValueIndex)
         return outTrxns
 
-    feeTrxn[commentIndex] = f"Comisión por transacción \
-            {outTrxn[sellCoinIndex]}=>{outTrxn[buyCoinIndex]}"
+    feeTrxn[commentIndex] = f"{outTrxn[sellCoinIndex]}=>{outTrxn[buyCoinIndex]}"
+
     outTrxns.append(feeTrxn)
-    return outTrxns
-
-
-
-
-def mergeDustTrxns(trxns, buyCoinIndex, buyValueIndex, sellCoinIndex, \
-        sellValueIndex, commentIndex):
-    """
-    Unir dos transacciones de tipo dust.
-
-    ARGUMENTOS:
-        - trxns: lista de transacciones del mismo grupo dust.
-        - buyCoinIndex: clave/índice de la moneda de compra.
-        - buyValueIndex: clave/índice de la cantidad de moneda comprada.
-        - sellCoinIndex: clave/índice de la moneda de venta.
-        - sellValueIndex: clave/índice de la cantidad de moneda vendida.
-        - commentIndex: clave/índice del comentario.
-
-    RETORNO:
-        Devuelve lista con transacciones resultado de unirlas. Si la transacción
-        comisión no se puede unir se devuelve dentro de la lista.
-        La lista de transacciones de entrada quedan modificadas.
-
-    EXCEPCIONES:
-        Si no hay dos transacciones.
-        Si falta compra o venta en las transacciones.
-    """
-
-    trxnsNum = len(trxns)
-    assert trxns or trxnsNum != 2, \
-            trxnErrors["NUM_GROUP_TRXNS"] + ": " + len(trxns)
-
-    outTrxn = None
-    for trxn in trxns:
-        if outTrxn is None:
-            outTrxn = trxn
-            outTrxns = [outTrxn]
-            continue
-
-        for coinIndex, valueIndex in {buyCoinIndex: buyValueIndex, \
-                sellCoinIndex: sellValueIndex}.items():
-            inCoin = getItem(trxn, coinIndex, "")
-            outCoin = getItem(outTrxn, coinIndex, "")
-            assert outCoin == "" or inCoin == "", \
-                    trxnErrors["DOUBLE_GROUP_OP"] + f": {outTrxn} | {trxn}"
-            assert outCoin != "" or inCoin != "", \
-                    trxnErrors["EMPTY_GROUP_OP"] + f": {outTrxn} | {trxn}"
-            if outCoin == "" and inCoin != "":
-                outTrxn[coinIndex] = inCoin
-                outTrxn[valueIndex] = getItem(trxn, valueIndex, "")
-
     return outTrxns
 
 
@@ -824,11 +775,9 @@ def csvProcessTrxns(trxnsIn, processTrxn, csvOut=None, mergeTrxnsGroups=None, \
             continue
         elif (groupId not in trxnsGroups):
             trxnsGroups[groupId] = []
-        log.debug(trxn)
         trxnsGroups[groupId].append(trxn)
 
     if (doMerge):
-        print(trxnsGroups)
         tempOutTrxns = mergeTrxnsGroups(trxnsGroups.values())
         if (csvOut is None):
             outTrxns.extend(tempOutTrxns)
@@ -848,29 +797,30 @@ newDayFormat = "%d-%m-%Y"
 
 inFieldNames = ["User_ID", "UTC_Time", "Account", "Operation", "Coin", \
         "Change", "Remark"]
+# Tipo es en realidad Operación y Operación es Acción. Cambiar cuando se pueda.
 outFieldNames = ["Tipo", "Operacion", "Compra", "MonedaC", "Venta", "MonedaV",\
         "Comision", "MonedaF", "Exchange", "Grupo", "Comentario", "Fecha"]
-outTypes = ["Staking", "Polvo", "Operación", "Deposito", "Retirada"]
+outTypes = ["Staking", "Trade", "Deposito", "Retirada"]
 inTypes = ["Deposit", "Withdraw", "Small assets exchange BNB", "Fee", "Buy", \
         "Sell", "Transaction Related", "POS savings interest", \
         "Super BNB Mining", "Savings Interest"]
-outOps = ["Comision", "Compra", "Venta"]
+outOps = ["Comision", "Compra", "Venta", "Polvo"]
 
 
 def getType(operation):
     parseType = { \
-            inTypes[0]: outTypes[3], \
-            inTypes[1]: outTypes[4], \
-            inTypes[2]: outTypes[1], \
-            **dict.fromkeys([inTypes[3], inTypes[4], inTypes[5], inTypes[6]], \
-                outTypes[2]),
+            inTypes[0]: outTypes[2], \
+            inTypes[1]: outTypes[3], \
+            **dict.fromkeys([inTypes[2], inTypes[3], inTypes[4], inTypes[5], \
+                inTypes[6]], outTypes[1]),
             **dict.fromkeys([inTypes[7], inTypes[8], inTypes[9]], outTypes[0])}
     return parseType.get(operation, None)
 
 
 def getOp(operation):
     parseOp = { \
-            inTypes[3]: outOps[0]
+            inTypes[3]: outOps[0],
+            inTypes[2]: outOps[3], \
             }
     return parseOp.get(operation, "")
 
@@ -961,10 +911,7 @@ def main():
     typeMerges = \
             {outTypes[0]: wrapf(mergeStakingTrxns, outFieldNames[3], \
                 outFieldNames[2]), \
-             outTypes[1]: wrapf(mergeDustTrxns, outFieldNames[3], \
-                outFieldNames[2], outFieldNames[5], outFieldNames[4], \
-                outFieldNames[10]), \
-             outTypes[2]: wrapf(mergeTradeTrxns, outFieldNames[3], \
+             outTypes[1]: wrapf(mergeTradeTrxns, outFieldNames[3], \
                 outFieldNames[2], outFieldNames[5], outFieldNames[4], \
                 outFieldNames[7], outFieldNames[6], outFieldNames[10])}
     #getsBlockId = \
@@ -979,10 +926,10 @@ def main():
                 getValue=joinStrValues, valueParsers=\
                 {2: wrapf(applyDateFormat, newDateFormat, newDayFormat)}), \
                 outFieldNames[0], outFieldNames[3], outFieldNames[11]), \
-             **dict.fromkeys([outTypes[1], outTypes[2]], \
+             **dict.fromkeys([outTypes[1], outTypes[1]], \
                 wrapGetTrxnValue(getGroupId, outFieldNames[0], \
                 outFieldNames[11])),
-             **dict.fromkeys([outTypes[3], outTypes[4]], \
+             **dict.fromkeys([outTypes[2], outTypes[3]], \
                 wrapGetTrxnValue(getGroupId, outFieldNames[0], \
                 outFieldNames[3], outFieldNames[11])),
             }
