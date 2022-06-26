@@ -602,7 +602,7 @@ def mergeTradeTrxns(trxns, buyCoinIndex, buyValueIndex, sellCoinIndex, \
                 outTrxn[coinIndex] = inCoin
                 outTrxn[valueIndex] = getItem(trxn, valueIndex, "")
 
-    outTrxn[commentIndex] = f"{outTrxn[sellCoinIndex]}=>{outTrxn[buyCoinIndex]}"
+    outTrxn[commentIndex] = f"{outTrxn[sellCoinIndex]} a {outTrxn[buyCoinIndex]}"
 
     if feeTrxn is None:
         return outTrxns
@@ -623,7 +623,7 @@ def mergeTradeTrxns(trxns, buyCoinIndex, buyValueIndex, sellCoinIndex, \
         outTrxn[feeValueIndex] = getItem(feeTrxn, feeValueIndex)
         return outTrxns
 
-    feeTrxn[commentIndex] = f"{outTrxn[sellCoinIndex]}=>{outTrxn[buyCoinIndex]}"
+    feeTrxn[commentIndex] = f"{outTrxn[sellCoinIndex]} a {outTrxn[buyCoinIndex]}"
 
     outTrxns.append(feeTrxn)
     return outTrxns
