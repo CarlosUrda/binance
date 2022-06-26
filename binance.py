@@ -803,7 +803,7 @@ outFieldNames = ["Tipo", "Operacion", "Compra", "MonedaC", "Venta", "MonedaV",\
 outTypes = ["Staking", "Trade", "Deposito", "Retirada"]
 inTypes = ["Deposit", "Withdraw", "Small assets exchange BNB", "Fee", "Buy", \
         "Sell", "Transaction Related", "POS savings interest", \
-        "Super BNB Mining", "Savings Interest"]
+        "Super BNB Mining", "Savings Interest", "Large OTC trading"]
 outOps = ["Comision", "Compra", "Venta", "Polvo"]
 
 
@@ -812,7 +812,7 @@ def getType(operation):
             inTypes[0]: outTypes[2], \
             inTypes[1]: outTypes[3], \
             **dict.fromkeys([inTypes[2], inTypes[3], inTypes[4], inTypes[5], \
-                inTypes[6]], outTypes[1]),
+                inTypes[6], inTypes[10]], outTypes[1]),
             **dict.fromkeys([inTypes[7], inTypes[8], inTypes[9]], outTypes[0])}
     return parseType.get(operation, None)
 
