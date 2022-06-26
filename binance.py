@@ -831,18 +831,22 @@ def getOpValue(operation, value, newField):
     if (newField==outFieldNames[6] and operation==inTypes[3]) or \
        (newField==outFieldNames[4] and (operation==inTypes[3] or value<0)) or \
        (newField==outFieldNames[2] and operation!=inTypes[3] and value>0):
-            return str(abs(value))
+           return f"{abs(value):.8f}"
     return ""
 
 
 def getCoin(operation, value, coin, newField):
+    parseCoin = {"DOT": "DOT2", "ATOM": "ATOM2", "BTTC": "BTT4", \
+                 "CITY": "CITY2"}
     value = float(value)
 
-    if (newField==outFieldNames[7] and operation==inTypes[3]) or \
+    if not ((newField==outFieldNames[7] and operation==inTypes[3]) or \
        (newField==outFieldNames[5] and (operation==inTypes[3] or value<0)) or \
-       (newField==outFieldNames[3] and operation!=inTypes[3] and value>0):
-            return coin
-    return ""
+       (newField==outFieldNames[3] and operation!=inTypes[3] and value>0)):
+        return ""
+
+    return parseCoin.get(coin, coin)
+
 
 
 def getComment(oldComment, trxnType):
