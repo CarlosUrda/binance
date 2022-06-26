@@ -19,10 +19,10 @@ MEJORAS:
     Mejorar las excepciones cambiando los assert por excepciones creadas.
 
     CRear un archivo de log donde ir registrando todo.
-    
+
     Permitir que haya un número ilimitado de transacciones de grupo y e ir
     haciendo el merge sin restricción. El problema de mezclar transacciones de
-    distintos grupos y que no dé error (P. ej: justo hay 3 transacciones 
+    distintos grupos y que no dé error (P. ej: justo hay 3 transacciones
     seguidas de un trading —compra, venta y comisión— pero que no pertenecen
     realmente a la misma operación. La forma de solucionarlo sería alertando
     de la diferencia entre lo que vale lo comprado y lo que vale lo vendido. Si
@@ -33,7 +33,7 @@ MEJORAS:
 
 """
 
-import utilidades.util as u
+#import utilidades.util as u
 import datetime as dt
 import collections as cl
 import logging as log
@@ -41,24 +41,26 @@ import operator as op
 import sys
 import csv
 
+log.basicConfig(filename='binance.log', encoding='utf-8', level=log.DEBUG)
 
 
 # *** FUNCIONES UTIL ***
 
-def changeKeys( dictIn, mapKeys = dict())
-"""
-Cambiar las claves de un diccionario.
+def changeKeys( dictIn, mapKeys = dict()):
+    """
+    Cambiar las claves de un diccionario.
 
-ARGUMENTOS:
-    - dictIn: diccionario a cambiar sus claves
-    - mapKeys: diccionario donde en cada par se indica una nueva clave (valor)
-    para una clave antigua (clave). Si una clave antigua no tiene clave para
-    mapear en mapKeys, en el nuevo diccionario se mantiene la antigua
+    ARGUMENTOS:
+        - dictIn: diccionario a cambiar sus claves
+        - mapKeys: diccionario donde en cada par se indica una nueva clave \
+                (valor) para una clave antigua (clave). Si una clave antigua \
+                no tiene clave para mapear en mapKeys, en el nuevo diccionario \
+                se mantiene la antigua.
 
-RETORNO:
-    Nuevo diccionario con las claves cambiadas. Si mapKeys == dict() devuelve
-    una copia del diccionario dictIn.
-"""
+    RETORNO:
+        Nuevo diccionario con las claves cambiadas. Si mapKeys == dict() \
+        devuelve una copia del diccionario dictIn.
+    """
     return {mapKeys.get(k, k):v for k,v in dictIn.items()}
 
 
@@ -82,7 +84,7 @@ def getItem(indexable, index, default=None):
     EXCEPCIONES:
         TypeError si indexable es secuencia e index no es entero.
     """
-    
+
     try:
         return indexable.get(index, default)
     except AttributeError:
@@ -99,7 +101,7 @@ def getItem(indexable, index, default=None):
 def wrapf(function, *endArgs, **kwEndArgs):
     """
     Envolver una función para obtener esa misma función con parte de sus
-    argumentos ya fijados. 
+    argumentos ya fijados.
 
     ARGUMENTOS:
         - function: función a envolver.
@@ -121,23 +123,24 @@ def wrapf(function, *endArgs, **kwEndArgs):
 
 # *** FUNCIONES CSV ***
 
-def csvOpen(file, mode="r", extrasaction="ignore", dialect=None, isDict=True, \
-        fieldnames=None):
+def csvOpen(file, mode="r", dialect=None, isDict=True, fieldnames=None):
     """
     Abrir un archivo csv para acceder a sus datos parseados.
+
+    MEJORAS:
+        Intentar meter la opción extrasaction en DictWriter.
     """
     if dialect is None and 'r' == mode:
         dialect = csv.Sniffer().sniff(file.read(1024))
         file.seek(0)
-    elif dialect is None and "w" == mode: 
+    elif dialect is None and "w" == mode:
         dialect = "excel"
     elif "r" != mode != "w" :
         pass # Lanzar excepción de argumento mode incorrecto
 
     if isDict:
         csvParser = csv.DictReader if 'r' in mode else csv.DictWriter
-        args = {"dialect":dialect, "fieldnames":fieldnames, \
-                "extrasaction":extrasaction}
+        args = {"dialect":dialect, "fieldnames":fieldnames}
     else:
         csvParser = csv.reader if 'r' in mode else csv.writer
         args = {"dialect":dialect}
@@ -156,7 +159,7 @@ def csvWriteRows(csvWriter, rows, mapFieldNames=None):
     ARGUMENTOS:
     - csvWriter: objeto csv writer destino donde escribir.
     - rows: lista de filas a escribir. Si csvWriter es writer, rows deben de ser
-    listas; si csvWriter es DictWriter, rows den de ser diccionarios. 
+    listas; si csvWriter es DictWriter, rows den de ser diccionarios.
     - mapFieldNames: Diccionario donde se asocia un nuevo nombre para cada
     campo del diccionario de cada fila. La clave representa el nombre
     antiguo de campo, y el valor el nuevo nombre. Si None, los nombres de
@@ -182,7 +185,7 @@ def applyDateFormat(strDate, dateFormat, newDateFormat):
     """
     Transformar una cadena fecha de un formato determinado a una cadena fecha
     con un nuevo formato.
- 
+
     ARGUMENTOS:
         - strDate: Cadena con la fecha de la cual obtener el día.
         - dateFormat: Cadena representando el formato completo de la fecha.
@@ -213,7 +216,7 @@ def joinStrValues(*values):
 
 
 
-def getParsedValue(*values, getValue=joinStrValues, valueParses=None):
+def getParsedValue(*values, getValue=joinStrValues, valueParsers=None):
     """
     Obtener un valor a partir de una serie de valores. Antes de obtener el valor
     se pueden parsear cada uno de los valores. Los nuevos valores obtenidos son
@@ -232,12 +235,13 @@ def getParsedValue(*values, getValue=joinStrValues, valueParses=None):
     RETORNO:
         Valor resultado de aplicar getValue a la lista de valores parseados.
     """
-   
-    if valueParsers is not None:
-        for index, parser in valueParsers.items():
-            values[index] = parser(value[int(index)])
 
-    getValue(*values)
+    if valueParsers is not None:
+        values = list(values)
+        for index, parser in valueParsers.items():
+            values[index] = parser(values[int(index)])
+
+    return getValue(*values)
 
 
 
@@ -267,8 +271,8 @@ def getGroupId(typeValue, *values, getValue=joinStrValues, valueParsers=None):
     RETORNO:
         GroupId resultado de aplicar getValue a la lista de valores parseados.
     """
-    values.insert(0, typeValue)
-    getParsedValue(*values, getValue=getValue, valueParsers=valueParsers)
+    values = (typeValue,) + values
+    return getParsedValue(*values, getValue=getValue, valueParsers=valueParsers)
 
 
 
@@ -303,7 +307,7 @@ trxnErrors = \
 
 def getTrxnValue(trxn, getValue, *keys):
     """
-    Obtener de manera genérica un valor a partir de una transacción aplicando 
+    Obtener de manera genérica un valor a partir de una transacción aplicando
     una función concreta.
 
     ARGUMENTOS:
@@ -345,8 +349,11 @@ def getTrxnValueByField(trxn, fieldKey, fieldGetsTrxnValue):
 
     RETORNO:
         Valor obtenido a partir de la transacción en función del campo
+        Si el campo no está registrado en fieldGetsTrxnValue retorna None
     """
 
+    if trxn[fieldKey] not in fieldGetsTrxnValue:
+        return None
     getTrxnValue = fieldGetsTrxnValue[trxn[fieldKey]]
     return getTrxnValue(trxn)
 
@@ -354,7 +361,7 @@ def getTrxnValueByField(trxn, fieldKey, fieldGetsTrxnValue):
 
 def wrapGetTrxnValue(getValue, *keys):
     """
-    Función que envuelve getTrxnValue para poder obtener una función que 
+    Función que envuelve getTrxnValue para poder obtener una función que
     obtenga el valor de una transacción recibiendo solo la transacción. Las
     claves y el método usados para obtener el valor se reciben en el wrap.
 
@@ -367,7 +374,7 @@ def wrapGetTrxnValue(getValue, *keys):
 
     RETORNO:
         Función equivalente a getTrxnValue(trxn), la cual recibe una
-        transacción y devuelve un valor a partir del método y los valores en 
+        transacción y devuelve un valor a partir del método y los valores en
         los campos de las claves recibidos en wrapGetTrxnValue.
 
     MEJORAS:
@@ -381,7 +388,7 @@ def wrapGetTrxnValue(getValue, *keys):
 
 def wrapGetTrxnValueByType(typeKey, mapGetValueKeysByType):
     """
-    Función que envuelve getTrxnValueByType para obtener una función que 
+    Función que envuelve getTrxnValueByType para obtener una función que
     reciba solo una transacción y obtenga un valor dependiendo del tipo de
     transacción. Las claves y el método usados por tipo de transacción para
     obtener el valor se reciben en el wrap.
@@ -391,7 +398,7 @@ def wrapGetTrxnValueByType(typeKey, mapGetValueKeysByType):
         a ser considerado como tipo de de la transacción.
         - mapGetValueKeysByType: Diccionario donde por cada tipo (clave) existe
         una lista con un par de valores: función para procesar valores y lista
-        de claves cuyos valores en la transacción serán procesados por la 
+        de claves cuyos valores en la transacción serán procesados por la
         función anterior. La función solo puede recibir como argumentos los
         valores de los campos de la transación a ser procesados.
 
@@ -445,7 +452,6 @@ def processNewTrxnKeys(trxn, newKeysProcess):
         asociadas no tiene solo un elemento.
     """
 
-    # Ignorar ciertas operaciones savings purchase
     # Depósito y retrada ****
     try:
         newKeysProcess = newKeysProcess.items()
@@ -453,10 +459,10 @@ def processNewTrxnKeys(trxn, newKeysProcess):
     except AttributeError:
         newKeysProcess = newKeysProcess.enumerate()
         outTrxn = [None] * len(newKeysProcess)
-        
+
     for newKey, getValue in newKeysProcess:
-        assert getValue is None
-                trxnErrors["EMPTY_GET__PROCESS_TRXN"] + f": {newKey}"
+        assert getValue is not None, \
+            trxnErrors["EMPTY_GET_PROCESS_TRXN"] + f": {newKey}"
         outTrxn[newKey] = getValue(trxn)
 
     return outTrxn
@@ -466,7 +472,7 @@ def processNewTrxnKeys(trxn, newKeysProcess):
 
 def wrapProcessNewTrxnKeys(newKeysProcess):
     """
-    Función que envuelve processiNewTrxnKeys para obtener una función que 
+    Función que envuelve processiNewTrxnKeys para obtener una función que
     reciba solo una transacción y obtenga una nueva transacción usando la
     configuración de las nuevas claves recibidas en el wrap.
 
@@ -478,8 +484,8 @@ def wrapProcessNewTrxnKeys(newKeysProcess):
         cuyos valores serán usados por la función para obtener el nuevo valor.
         La función solo puede recibir por argumentos los valores a partir de
         los cuales obtendrá un nuevo valor para la nueva clave. Si la función
-        es None la lista de claves asociada solo puede tener una clave, cuyo 
-        valor en la transacción se tomará directamente como el nuevo valor para 
+        es None la lista de claves asociada solo puede tener una clave, cuyo
+        valor en la transacción se tomará directamente como el nuevo valor para
         la nueva clave en la nueva transacción.
 
     RETORNO:
@@ -497,7 +503,7 @@ def wrapProcessNewTrxnKeys(newKeysProcess):
 
 def mergeStakingTrxns(trxns, coinIndex, stakedIndex):
     """
-    Unir transacciones de tipo staking. 
+    Unir transacciones de tipo staking.
 
     ARGUMENTOS:
         - trxns: lista de transacciones a unir como un solo staking. Las
@@ -515,20 +521,20 @@ def mergeStakingTrxns(trxns, coinIndex, stakedIndex):
         Si el tipo de moneda de dos transacciones es distinta se lanza excepción
     """
 
-    assert not trxns, trxnErrors["NUM_GROUP_TRXNS"] + ": 0"
+    assert trxns, trxnErrors["NUM_GROUP_TRXNS"] + ": 0"
 
-    trxnOut = trxns.pop(0)
-    trxnsOut = [trxnOut]
+    outTrxn = trxns.pop(0)
+    outTrxns = [outTrxn]
     for trxn in trxns:
-        assert trxnOut[coinIndex] != trxn[coinIndex], \
+        assert outTrxn[coinIndex] == trxn[coinIndex], \
                     trxnErrors["COIN_GROUP_STAKING"] + \
-                    f": {trxnOut[coinIndex]}, {trxn[coinIndex]}"
+                    f": {outTrxn[coinIndex]}, {trxn[coinIndex]}"
 
-        trxnOut[stakedIndex] = float(trxnOut[stakedIndex]) + \
-                float(trxn[stakedIndex]))
+        outTrxn[stakedIndex] = float(outTrxn[stakedIndex]) + \
+                float(trxn[stakedIndex])
 
-    trxnOut[stakedIndex] = str(trxnOut[stakedIndex])
-    return trxnsOut
+    outTrxn[stakedIndex] = str(outTrxn[stakedIndex])
+    return outTrxns
 
 
 
@@ -540,7 +546,7 @@ def mergeTradeTrxns(trxns, buyCoinIndex, buyValueIndex, sellCoinIndex, \
     no puede unirse se devuelve como trxns aparte.
 
     ARGUMENTOS:
-        - trxns: lista de transacciones del mismo grupo trading. 
+        - trxns: lista de transacciones del mismo grupo trading.
         - buyCoinIndex: clave/índice de la moneda de compra.
         - buyValueIndex: clave/índice de la cantidad de moneda comprada.
         - sellCoinIndex: clave/índice de la moneda de venta.
@@ -561,44 +567,44 @@ def mergeTradeTrxns(trxns, buyCoinIndex, buyValueIndex, sellCoinIndex, \
     """
 
     trxnsNum = len(trxns)
-    assert not trxns or trxnsNum > 3, \
+    assert trxns or trxnsNum > 3, \
             trxnErrors["NUM_GROUP_TRXNS"] + ": " + len(trxns)
 
     feeTrxn = outTrxn = None
     for trxn in trxns:
         feeCoin = getItem(trxn, feeCoinIndex, "")
-        assert (feeCoin != "" and feeTrxn is not None), \
+        assert feeCoin == "" or feeTrxn is None, \
                 trxnErrors["DOUBLE_GROUP_FEE"] + f": {feeTrxn} | {trxn}"
         if feeCoin != "":
-            assert trxnsNum == 2, \
+            assert trxnsNum != 2, \
                     trxnErrors["EMPTY_GROUP_OP"] + f": {trxn}"
-            if trxnsNum == 1
+            if trxnsNum == 1:
                 return [trxn]
             feeTrxn = trxn
             continue
-        
+
         if outTrxn is None:
-            assert trxnsNum == 1, \
+            assert trxnsNum != 1, \
                     trxnErrors["EMPTY_GROUP_OP"] + f": {trxn}"
             outTrxn = trxn
             outTrxns = [outTrxn]
             continue
 
-        for coinIndex, valueIndex in {buyCoinIndex: buyValueIndex,
-                sellCoinIndex: sellValueIndex}:
+        for coinIndex, valueIndex in {buyCoinIndex: buyValueIndex, \
+                sellCoinIndex: sellValueIndex}.items():
             inCoin = getItem(trxn, coinIndex, "")
             outCoin = getItem(outTrxn, coinIndex, "")
-            assert (outCoin != "" and inCoin != ""), \
+            assert outCoin == "" or inCoin == "", \
                     trxnErrors["DOUBLE_GROUP_OP"] + f": {outTrxn} | {trxn}"
-            assert outCoin == "" and inCoin == "", \
+            assert outCoin != "" or inCoin != "", \
                     trxnErrors["EMPTY_GROUP_OP"] + f": {outTrxn} | {trxn}"
             if outCoin == "" and inCoin != "":
-                trxnOut[coinIndex] = inCoin
-                trxnOut[valueIndex] = getItem(trxn, valueIndex, "")
-  
+                outTrxn[coinIndex] = inCoin
+                outTrxn[valueIndex] = getItem(trxn, valueIndex, "")
+
     if feeTrxn is None:
         return outTrxns
-    
+
     if getItem(outTrxn, buyCoinIndex) == getItem(feeTrxn, feeCoinIndex):
         buyValue = float(getItem(outTrxn, buyValueIndex, 0))
         feeValue = float(getItem(feeTrxn, feeValueIndex, 0))
@@ -624,7 +630,7 @@ def mergeTradeTrxns(trxns, buyCoinIndex, buyValueIndex, sellCoinIndex, \
 
 
 def mergeDustTrxns(trxns, buyCoinIndex, buyValueIndex, sellCoinIndex, \
-        sellValueIndex, commentIndex)
+        sellValueIndex, commentIndex):
     """
     Unir dos transacciones de tipo dust.
 
@@ -647,7 +653,7 @@ def mergeDustTrxns(trxns, buyCoinIndex, buyValueIndex, sellCoinIndex, \
     """
 
     trxnsNum = len(trxns)
-    assert not trxns or trxnsNum != 2, \
+    assert trxns or trxnsNum != 2, \
             trxnErrors["NUM_GROUP_TRXNS"] + ": " + len(trxns)
 
     outTrxn = None
@@ -657,19 +663,18 @@ def mergeDustTrxns(trxns, buyCoinIndex, buyValueIndex, sellCoinIndex, \
             outTrxns = [outTrxn]
             continue
 
-        for coinIndex, valueIndex in {buyCoinIndex: buyValueIndex,
-                sellCoinIndex: sellValueIndex}:
+        for coinIndex, valueIndex in {buyCoinIndex: buyValueIndex, \
+                sellCoinIndex: sellValueIndex}.items():
             inCoin = getItem(trxn, coinIndex, "")
             outCoin = getItem(outTrxn, coinIndex, "")
-            assert (outCoin != "" and inCoin != ""), \
+            assert outCoin == "" or inCoin == "", \
                     trxnErrors["DOUBLE_GROUP_OP"] + f": {outTrxn} | {trxn}"
-            assert outCoin == "" and inCoin == "", \
+            assert outCoin != "" or inCoin != "", \
                     trxnErrors["EMPTY_GROUP_OP"] + f": {outTrxn} | {trxn}"
             if outCoin == "" and inCoin != "":
-                trxnOut[coinIndex] = inCoin
-                trxnOut[valueIndex] = getItem(trxn, valueIndex, "")
-  
-    outTrxns.append(feeTrxn)
+                outTrxn[coinIndex] = inCoin
+                outTrxn[valueIndex] = getItem(trxn, valueIndex, "")
+
     return outTrxns
 
 
@@ -683,26 +688,26 @@ def mergeTrxnsGroupsByType(trxnsGroups, typeIndex, typeMerges):
     merge de las transacciones depende de un campo de la transacción.
 
     ARGUMENTOS:
-        - trxnsGroups: lista de listas o grupos de transacciones a realizar 
+        - trxnsGroups: lista de listas o grupos de transacciones a realizar
         merge por grupo.
         - typeIndex: clave/índice de la transacción donde se encuentra el valor
         del campo. Se parte del hecho de que todas las transacciones de un
         mismo grupo tienen el mismo valor para ese campo.
         - typeMerges: diccionario que empareja por tipo de transacción del
-        grupo una función para unir las transacciones de un mismo grupo. 
-        Esta función recibirá como argumentos una lista de transacciones del 
+        grupo una función para unir las transacciones de un mismo grupo.
+        Esta función recibirá como argumentos una lista de transacciones del
         mismo grupo a realizar el merge. Si un tipo no tiene merge en este
-        diccionario, las transacciones del grupo no se modifican.
+        diccionario, las transacciones del grupo no se agrupan ni modifican.
 
     RETORNO:
         Transacción resultado de la unión de las transacciones del mismo grupo.
     """
-   
+
     outTrxns = []
     for trxnsGroup in trxnsGroups:
         groupType = trxnsGroup[0][typeIndex]
         try:
-            outTrxns.extend(typeMerges.get(groupType, lambda x:x)](trxnsGroup))
+            outTrxns.extend(typeMerges.get(groupType, lambda x:x)(trxnsGroup))
         except BaseException as e:
             log.exception(f"Error merge grupo {groupType}: {trxnsGroup}")
             raise e
@@ -725,38 +730,38 @@ def wrapMergeGroupTrxnsByType(typeIndex, typeMerges):
 
 # El valor del tipo usado para obtener la clave groupId debe estar al inicio o
 # final de los valores usados para obtener groupId. Esto se hace para evitar que
-# dos groupId de dos transacciones con tipos distinto (obtenidos a partir de 
+# dos groupId de dos transacciones con tipos distinto (obtenidos a partir de
 # distintos valores) no coinciddan de ninguna manera.
 
 # Los valores del tipo de transacción deben ser un inmutable, ya que si no, no
 # puede usarse como clave en el diccionario pasado a getTrxnValueByType.
 
 def csvProcessTrxns(trxnsIn, processTrxn, csvOut=None, mergeTrxnsGroups=None, \
-        getTrxnGroupId=None, getTrxnBlockId=None)
+        getTrxnGroupId=None, getTrxnBlockId=None):
     """
     Procesar todas las transacciones.
 
     ARGUMENTOS:
         - trxnsIn: Iterator con las transacciones de entrada.
         - csvOut: writer csv de salida donde escribir las transacciones
-        procesadas. Si None, todas las transacciones procesadas se devuelven 
+        procesadas. Si None, todas las transacciones procesadas se devuelven
         como una lista sin escribirlas en ningún csv.
         Si existe un writer no se guardan todas las transacciones procesadas:
-        solo van almacenando temporalmente las transacciones procesadas de un 
-        día y, al pasar a una transacción de entrada con un día distinto, todas 
-        las transacciones procesadas del día almacenadas hasta ese momento se 
+        solo van almacenando temporalmente las transacciones procesadas de un
+        día y, al pasar a una transacción de entrada con un día distinto, todas
+        las transacciones procesadas del día almacenadas hasta ese momento se
         escriben en el writer csv y se limpian de la memoria. Por esta razón,
-        para que el procesamiento sea correcto usando esta manera, la lista de 
+        para que el procesamiento sea correcto usando esta manera, la lista de
         transacciones de entrada deben de estar agrupadas por día; además, no
         puede haber transacciones de días distintos que sean potencialmente
         unibles en una sola transacción.
         Esta opción existe para ahorrar memoria, pero tienen que cumplirse dos
-        condiciones para que el procesamiento sea correcto: que la lista de 
+        condiciones para que el procesamiento sea correcto: que la lista de
         transacciones esté ordenada por día, y que no haya varias transacciones
         unibles en una sola transacción que pertenezcan a días distintos. Si
         alguna de las dos condiciones no se cumple, es mejor no pasar ningún
         csv writer a la función, que devuelva la lista completa de transacciones
-        procesadas y, desde fuera de la función, escribir el resultado a un 
+        procesadas y, desde fuera de la función, escribir el resultado a un
         csv writer.
         - fieldNamesInOut: Diccionario donde se asocia un nuevo nombre para cada
         campo del diccionario de cada transacción. La clave representa el nombre
@@ -766,11 +771,11 @@ def csvProcessTrxns(trxnsIn, processTrxn, csvOut=None, mergeTrxnsGroups=None, \
         Valor por el que están aglutinadas u ordenadas las transacciones de
         entrada formando bloques en memoria. Sirve para optimizar la memoria
         al ir almacenando solamente cada vez un solo bloque de transacciones que
-        tienen este mismo valor. Al usarse esta opción, la unión de 
+        tienen este mismo valor. Al usarse esta opción, la unión de
         transacciones (merge) deben ser solo entre las transacciones de un mismo
         bloque
 
-        Merge y get se aplican sobre las transacciones ya precesadas con los
+        Merge y gettrxn se aplican sobre las transacciones ya precesadas con los
         nuevos campos.
 
     RETORNO:
@@ -780,7 +785,7 @@ def csvProcessTrxns(trxnsIn, processTrxn, csvOut=None, mergeTrxnsGroups=None, \
         - csvOut != None: Número de caracteres escritos en el csw writer.
 
     MEJORAS:
-        
+
     """
     trxnsGroups = cl.OrderedDict()
     if csvOut is None:
@@ -796,7 +801,7 @@ def csvProcessTrxns(trxnsIn, processTrxn, csvOut=None, mergeTrxnsGroups=None, \
         trxn = processTrxn(trxn)
 
         if (not doMerge):
-            if (csvOut is None)
+            if (csvOut is None):
                 outTrxns.append(trxn)
             else:
                 outTrxns += csvOut.writerow(trxn)
@@ -814,33 +819,37 @@ def csvProcessTrxns(trxnsIn, processTrxn, csvOut=None, mergeTrxnsGroups=None, \
             trxnsGroups = cl.OrderedDict()
 
         groupId = getTrxnGroupId(trxn)
-        if (groupId not in trxnsGroups)
+        if groupId is None:
+            log.warning(trxn)
+            continue
+        elif (groupId not in trxnsGroups):
             trxnsGroups[groupId] = []
+        log.debug(trxn)
         trxnsGroups[groupId].append(trxn)
 
     if (doMerge):
+        print(trxnsGroups)
         tempOutTrxns = mergeTrxnsGroups(trxnsGroups.values())
         if (csvOut is None):
             outTrxns.extend(tempOutTrxns)
         else:
             outTrxns += csvOut.writerows(tempOutTrxns)
-    
-    return outTrxns 
+
+    return outTrxns
 
 
 
 
 # Los siguientes valores se podrán meter como parámetros al programa, sobre
 # todo al usar interfaz gráfica. Por defecto valores siguientes:
-dateFormat = "%Y-%m-$d %H:%M:%S"
-newDateFormat = "%d-%m-$Y %H:%M:%S"
-newDayFormat = "%d-%m-$Y"
+dateFormat = "%Y-%m-%d %H:%M:%S"
+newDateFormat = "%d-%m-%Y %H:%M:%S"
+newDayFormat = "%d-%m-%Y"
 
 inFieldNames = ["User_ID", "UTC_Time", "Account", "Operation", "Coin", \
         "Change", "Remark"]
 outFieldNames = ["Tipo", "Operacion", "Compra", "MonedaC", "Venta", "MonedaV",\
         "Comision", "MonedaF", "Exchange", "Grupo", "Comentario", "Fecha"]
-outGets = [getType, getOp, getOpValue, getComment]
 outTypes = ["Staking", "Polvo", "Operación", "Deposito", "Retirada"]
 inTypes = ["Deposit", "Withdraw", "Small assets exchange BNB", "Fee", "Buy", \
         "Sell", "Transaction Related", "POS savings interest", \
@@ -854,7 +863,7 @@ def getType(operation):
             inTypes[1]: outTypes[4], \
             inTypes[2]: outTypes[1], \
             **dict.fromkeys([inTypes[3], inTypes[4], inTypes[5], inTypes[6]], \
-                outTypes[2]), 
+                outTypes[2]),
             **dict.fromkeys([inTypes[7], inTypes[8], inTypes[9]], outTypes[0])}
     return parseType.get(operation, None)
 
@@ -863,7 +872,7 @@ def getOp(operation):
     parseOp = { \
             inTypes[3]: outOps[0]
             }
-    return parseType.get(operation, "")
+    return parseOp.get(operation, "")
 
 
 def getOpValue(operation, value, newField):
@@ -882,13 +891,16 @@ def getCoin(operation, value, coin, newField):
     if (newField==outFieldNames[7] and operation==inTypes[3]) or \
        (newField==outFieldNames[5] and (operation==inTypes[3] or value<0)) or \
        (newField==outFieldNames[3] and operation!=inTypes[3] and value>0):
-            return coin 
+            return coin
     return ""
 
 
 def getComment(oldComment, trxnType):
     pass
-    
+
+
+outGets = [getType, getOp, getOpValue, getCoin, getComment]
+
 
 def main():
     """
@@ -896,9 +908,9 @@ def main():
 
     El programa permite cuatro combinaciones entrada/salida: Procesar las
     transacciones directamente desde un reader csv o desde una lista de
-    transacciones de entrada almacenadas ya en memoria hacia un writer csv o 
+    transacciones de entrada almacenadas ya en memoria hacia un writer csv o
     para almacenarlas en otra lista de transacciones de salida en memoria.
-    
+
     MEJORAS:
         - Dar la opción de ir escribiendo en el archivo de salida cada día de
         transacciones procesado o, en cambio, escribir todas las transacciones
@@ -911,7 +923,7 @@ def main():
 
         Desde el programa principal se puede elegir los campos de salida que
         se quiera y darle un nombre. A cada campo de salida se le asocia la
-        función get que está relacionada con el tipo de campo que es y los 
+        función get que está relacionada con el tipo de campo que es y los
         campos de entrada necesarios para poder obtener el dato correctamente
         para esa función. La función get a elegir y el tipo de dato de ese
         campo de salida están ligados. La forma de dar al usuario a elegir
@@ -926,20 +938,20 @@ def main():
     outFieldsGetsValues = \
             {outFieldNames[0]: wrapGetTrxnValue(getType, inFieldNames[3]), \
              outFieldNames[1]: wrapGetTrxnValue(getOp, inFieldNames[3]), \
-             outFieldNames[2]]: wrapGetTrxnValue(wrapf(getOpValue, \
+             outFieldNames[2]: wrapGetTrxnValue(wrapf(getOpValue, \
                 outFieldNames[2]), inFieldNames[3], inFieldNames[5]), \
-             outFieldNames[4]]: wrapGetTrxnValue(wrapf(getOpValue, \
+             outFieldNames[4]: wrapGetTrxnValue(wrapf(getOpValue, \
                 outFieldNames[4]), inFieldNames[3], inFieldNames[5]), \
-             outFieldNames[6]]: wrapGetTrxnValue(wrapf(getOpValue, \
+             outFieldNames[6]: wrapGetTrxnValue(wrapf(getOpValue, \
                 outFieldNames[6]), inFieldNames[3], inFieldNames[5]), \
-             outFieldNames[3]]: wrapGetTrxnValue(wrapf(getCoin, \
-                outFieldNames[2]), inFieldNames[3], inFieldNames[5], \
+             outFieldNames[3]: wrapGetTrxnValue(wrapf(getCoin, \
+                outFieldNames[3]), inFieldNames[3], inFieldNames[5], \
                 inFieldNames[4]), \
-             outFieldNames[5]]: wrapGetTrxnValue(wrapf(getCoin, \
-                outFieldNames[4]), inFieldNames[3], inFieldNames[5]), \
+             outFieldNames[5]: wrapGetTrxnValue(wrapf(getCoin, \
+                outFieldNames[5]), inFieldNames[3], inFieldNames[5], \
                 inFieldNames[4]), \
-             outFieldNames[7]]: wrapGetTrxnValue(wrapf(getCoin, \
-                outFieldNames[6]), inFieldNames[3], inFieldNames[5]), \
+             outFieldNames[7]: wrapGetTrxnValue(wrapf(getCoin, \
+                outFieldNames[7]), inFieldNames[3], inFieldNames[5], \
                 inFieldNames[4]), \
              outFieldNames[8]: lambda x: "Binance", \
              outFieldNames[10]: op.itemgetter(inFieldNames[6]), \
@@ -959,13 +971,13 @@ def main():
     #        {"function": lambda v: applyDateFormat(v, dateFormat, dayFormat), \
     #         "keys": [dateFieldNameOut]}
     # Las distintas formas de obtener el groupId tienen que tener en común
-    # que el primer o último campo sea el tipo, ya que todos los groupId, 
+    # que el primer o último campo sea el tipo, ya que todos los groupId,
     # aunque se obtengan de manera distinta dependiendo del tipo de la trxn,
     # debe ser único entre todos los groupId de todas las trxns.
-    getGroupIdByType = \
+    typeGetsGroupId = \
             {outTypes[0]: wrapGetTrxnValue(wrapf(getGroupId, \
                 getValue=joinStrValues, valueParsers=\
-                {2: wrapf(applydateFormat, newDateFormat, newDayFormat)}), \
+                {2: wrapf(applyDateFormat, newDateFormat, newDayFormat)}), \
                 outFieldNames[0], outFieldNames[3], outFieldNames[11]), \
              **dict.fromkeys([outTypes[1], outTypes[2]], \
                 wrapGetTrxnValue(getGroupId, outFieldNames[0], \
@@ -973,34 +985,34 @@ def main():
              **dict.fromkeys([outTypes[3], outTypes[4]], \
                 wrapGetTrxnValue(getGroupId, outFieldNames[0], \
                 outFieldNames[3], outFieldNames[11])),
-            } 
+            }
 
     isCsvInToMem = True
     isCsvOutToMem = True
-    
+
     inFile = open(inFileName, newline='')
     csvIn = csvOpen(inFile, 'r', isDict=True)
-    trxnsIn = [trxn for trxn in csvIn] if isCSVInToMem else csvIn
+    trxnsIn = [trxn for trxn in csvIn] if isCsvInToMem else csvIn
 
     outFile = open(outFileName, "w", newline='')
     csvOut = None if isCsvOutToMem else csvOpen(outFile, 'w', dialect="excel", \
             isDict=True, fieldnames=outFieldNames)
-    
-    # Dar antes la opción de agrupar las transacciones itertools groupby 
-    
+
+    # Dar antes la opción de agrupar las transacciones itertools groupby
+
     processTrxn = wrapf(processNewTrxnKeys, outFieldsGetsValues)
     mergeTrxnsGroups = wrapf(mergeTrxnsGroupsByType, outFieldNames[0], \
             typeMerges)
     getTrxnBlockId = wrapGetTrxnValue(wrapf(applyDateFormat, newDateFormat, \
             newDayFormat), outFieldNames[11])
     getTrxnGroupId = wrapf(getTrxnValueByField, outFieldNames[0], \
-            getGroupIdByType)
+            typeGetsGroupId)
     outTrxns = csvProcessTrxns(trxnsIn, processTrxn, csvOut, mergeTrxnsGroups, \
             getTrxnGroupId, getTrxnBlockId)
 
     inFile.close()
 
-    if isCsvOutToMem: 
+    if isCsvOutToMem:
         csvOut = csvOpen(outFile, 'w', dialect="excel", isDict=True, \
                 fieldnames=outFieldNames)
         csvOut.writeheader()
